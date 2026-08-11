@@ -15,12 +15,12 @@ export namespace tpc::analytics
         using UniversalBasisFunc = std::function<double(std::size_t, std::span<const double>)>;
 
     public:
-        template <concepts::MeasurementConcept Measurement, typename... Args>
+        template <concepts::MeasurementConcept Measurement>
         static std::expected<eigen::VectorXd, std::string> SolveSvd(
-            std::span<const Measurement>                                                                    measurements,
-            std::type_identity_t<std::span<const utilities::header_function<double(std::size_t, Args...)>>> basis_functions,
-            std::size_t                                                                                     modes,
-            double                                                                                          threshold)
+            std::span<const Measurement>                                                             measurements,
+            std::span<const utilities::header_function<double(std::size_t, double, double, double)>> basis_functions,
+            std::size_t                                                                              modes,
+            double                                                                                   threshold)
         {
             if (measurements.empty())
                 return std::unexpected("Measurement collection is empty");

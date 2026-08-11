@@ -3,29 +3,36 @@ import std;
 
 import tpc.utilities.chunkview;
 
-export namespace tpc::analytics::models {
-    enum class CoordinateType {
+export namespace tpc::analytics::models
+{
+    /// Represents the coordinate system type.
+    enum class CoordinateType
+    {
         Cartesian,
         Cylindric
     };
 
-    struct PointComponents {
-        std::array<double,3> components;
-        CoordinateType coordinate_type;
+
+    struct PointComponents
+    {
+        std::vector<double> components;
+        CoordinateType      coordinate_type;
 
         [[nodiscard]] std::span<const double> GetPointComponents() const noexcept { return components; }
-        [[nodiscard]] std::span<double> GetPointComponents() noexcept { return components; }
+        [[nodiscard]] std::span<double>       GetPointComponents() noexcept { return components; }
     };
 
-    struct FieldComponents {
-        std::array<double,3> components;
-        CoordinateType coordinate_type;
+    struct FieldComponents
+    {
+        std::vector<double> components;
+        CoordinateType      coordinate_type;
 
         [[nodiscard]] std::span<const double> GetFieldComponents() const noexcept { return components; }
-        [[nodiscard]] std::span<double> GetFieldComponents() noexcept { return components; }
+        [[nodiscard]] std::span<double>       GetFieldComponents() noexcept { return components; }
     };
 
-    struct Measurement {
+    struct Measurement
+    {
         PointComponents point_components{};
         FieldComponents field_components{};
 
@@ -33,23 +40,26 @@ export namespace tpc::analytics::models {
         std::span<const double> GetFieldComponents() const { return field_components.GetFieldComponents(); }
     };
 
-    class FieldCollection {
+    
+    class FieldCollection
+    {
     public:
         FieldCollection(std::size_t dimension, CoordinateType coordinates_type, CoordinateType field_type)
-            : dimension_(dimension),
-              coordinates_type_(coordinates_type),
-              field_type_(field_type) {
+            : dimension_(dimension), coordinates_type_(coordinates_type), field_type_(field_type)
+        {
         }
 
         ~FieldCollection() = default;
 
     public:
-        void Reserve(std::size_t capacity) {
+        void Reserve(std::size_t capacity)
+        {
             coordinates_.reserve(capacity);
             field_.reserve(capacity);
         }
 
-        std::expected<void, std::string> InsertCoordinatesRange(std::span<const double> coordinates_data) {
+        std::expected<void, std::string> InsertCoordinatesRange(std::span<const double> coordinates_data)
+        {
             if (coordinates_data.empty())
                 return std::unexpected("Coordinates data is empty");
 
@@ -61,7 +71,8 @@ export namespace tpc::analytics::models {
             return {};
         }
 
-        std::expected<void, std::string> InsertFieldRange(std::span<const double> field_data) {
+        std::expected<void, std::string> InsertFieldRange(std::span<const double> field_data)
+        {
             if (field_data.empty())
                 return std::unexpected("Field data is empty");
 
@@ -73,7 +84,8 @@ export namespace tpc::analytics::models {
             return {};
         }
 
-        std::expected<void, std::string> TransformCoordinates(CoordinateType target_type) {
+        std::expected<void, std::string> TransformCoordinates(CoordinateType target_type)
+        {
             if (coordinates_.empty())
                 return std::unexpected("Coordinates collection is empty");
 
@@ -82,31 +94,74 @@ export namespace tpc::analytics::models {
 
             auto chunks = tpc::utilities::ChunkView{std::span<double>(coordinates_), dimension_};
 
-            if (target_type == CoordinateType::Cylindric) {
-                std::ranges::for_each(chunks, [](std::span<double> point) {
-                    const double x = point[0];
-                    const double y = point[1];
+            if (target_type == CoordinateType::Cylindric)
+            {
+                std::ranges::for_each(chunks,
+                                      [](std::span<double> point)
+                                      {
+                                          const double x = point[0];
+                                          const double y = point[1];
 
-                    point[0] = std::hypot(x, y);
-                    point[1] = std::atan2(y, x);
-                });
-            } else if (target_type == CoordinateType::Cartesian) {
-                std::ranges::for_each(chunks, [](std::span<double> point) {
-                    const double r = point[0];
-                    const double phi = point[1];
+                                          point[0] = std::hypot(x, y);
+                                          point[1] = std::atan2(y, x);
+                                      });
+            }
+            else if (target_type == CoordinateType::Cartesian)
+            {
+                std::ranges::for_each(chunks,
+                                      [](std::span<double> point)
+                                      {
+                                          const double r   = point[0];
+                                          const double phi = point[1];
 
-                    point[0] = r * std::cos(phi);
-                    point[1] = r * std::sin(phi);
-                });
+                                          point[0] = r * std::cos(phi);
+                                          point[1] = r * std::sin(phi);
+                                      });
             }
 
             coordinates_type_ = target_type;
             return {};
         }
 
-        ///TODO
-        std::expected<void, std::string> TransformField(CoordinateType target_type) {
+        std::expected<void, std::string> TransformField(CoordinateType target_type)
+        {
+            if (field_.empty())
+                return std::unexpected("Field collection is empty");
+
+            if (field_type_ == target_type)
+                return {};
+
+            if (dimension_ != 3)
+                return std::unexpected("Only 3D fields are supported");
+
+            if (field_type_ != CoordinateType::Cylindric || target_type != CoordinateType::Cartesian)
+            {
+                return std::unexpected("Unsupported field transformation");
+            }
+
+            if (coordinates_type_ != CoordinateType::Cylindric)
+                return std::unexpected("Coordinates must be cylindrical");
+
+            if (coordinates_.size() != field_.size())
+                return std::unexpected("Coordinates and field sizes differ");
+
+            for (std::size_t offset = 0; offset < field_.size(); offset += dimension_)
+            {
+                const double phi  = coordinates_[offset + 1];
+                const double br   = field_[offset];
+                const double bphi = field_[offset + 1];
+
+                field_[offset]     = br * std::cos(phi) - bphi * std::sin(phi);
+                field_[offset + 1] = br * std::sin(phi) + bphi * std::cos(phi);
+            }
+
+            field_type_ = CoordinateType::Cartesian;
+            return {};
         }
+
+    public:
+        std::span<const double> get_field() { return field_; }
+        std::span<const double> get_coordinates() { return coordinates_; }
 
     private:
         std::size_t dimension_{};
@@ -117,4 +172,4 @@ export namespace tpc::analytics::models {
         std::vector<double> coordinates_{};
         std::vector<double> field_{};
     };
-}
+}  // namespace tpc::analytics::models

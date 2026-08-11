@@ -94,24 +94,19 @@ static double BasisZ(int k, double r, double phi, double z)
 
 int main()
 {
-    tpc::analytics::Basis<double, double, double> basis{};
-    basis.functions.push_back(BasisR);
-    basis.functions.push_back(BasisPhi);
-    basis.functions.push_back(BasisZ);
+    auto a  = tpc::analytics::AnalyticsManager::create_default_basis(BasisR, BasisPhi, BasisZ, 10);
+    
+    auto manager = tpc::analytics::AnalyticsManager::create(std::move(a)).value();
 
-    basis.modes      = 10;
-    basis.basis_type = tpc::analytics::models::CoordinateType::Cylindric;
+    auto b = manager.GenerateTPCSensorMeasurements();
 
-    // tpc::analytics::AnalyticsManager manager(std::move(basis));
-    auto manager = tpc::analytics::AnalyticsManager<double, double, double>::create(std::move(basis)).value();
+    manager.calculate_svd_coefficients(b,0.0001);
+    //std::array<const std::size_t, tpc::analytics::__DIMENSION> components = {512, 50, 512};
 
-    auto a = manager.GenerateTPCSensorMeasurements();
-    manager.calculate_svd_coefficients(a);
-    std::array<const std::size_t, tpc::analytics::__DIMENSION> components = {512, 50, 512};
+    std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(128, 50, 128);
 
-    tpc::analytics::AnalyticsManager<double, double, double>::create_grid(512, 50, 512);
-    auto b = tpc::analytics::AnalyticsManager<double, double, double>::create_default_basis(BasisR, BasisPhi, BasisZ, 10);
-    tpc::analytics::AnalyticsManager<double, double, double>::create(std::move(b));
+    manager.calculate_field_cylindric(arr, 2, 7);
 
+    manager.export_to_vtk();
     return 0;
 }
