@@ -12,14 +12,20 @@ export namespace tpc::analytics::models
         Cylindric
     };
 
+    enum class SliceDirection{
+        X,
+        Y,
+        Z
+    };
+
 
     struct PointComponents
     {
         std::vector<double> components;
         CoordinateType      coordinate_type;
 
-        [[nodiscard]] std::span<const double> GetPointComponents() const noexcept { return components; }
-        [[nodiscard]] std::span<double>       GetPointComponents() noexcept { return components; }
+        [[nodiscard]] std::span<const double> get_point_components() const noexcept { return components; }
+        [[nodiscard]] std::span<double>       get_point_components() noexcept { return components; }
     };
 
     struct FieldComponents
@@ -27,8 +33,8 @@ export namespace tpc::analytics::models
         std::vector<double> components;
         CoordinateType      coordinate_type;
 
-        [[nodiscard]] std::span<const double> GetFieldComponents() const noexcept { return components; }
-        [[nodiscard]] std::span<double>       GetFieldComponents() noexcept { return components; }
+        [[nodiscard]] std::span<const double> get_field_components() const noexcept { return components; }
+        [[nodiscard]] std::span<double>       get_field_components() noexcept { return components; }
     };
 
     struct Measurement
@@ -36,8 +42,8 @@ export namespace tpc::analytics::models
         PointComponents point_components{};
         FieldComponents field_components{};
 
-        std::span<const double> GetPointComponents() const { return point_components.GetPointComponents(); }
-        std::span<const double> GetFieldComponents() const { return field_components.GetFieldComponents(); }
+        std::span<const double> get_point_components() const { return point_components.get_point_components(); }
+        std::span<const double> get_field_components() const { return field_components.get_field_components(); }
     };
 
     
@@ -58,7 +64,7 @@ export namespace tpc::analytics::models
             field_.reserve(capacity);
         }
 
-        std::expected<void, std::string> InsertCoordinatesRange(std::span<const double> coordinates_data)
+        std::expected<void, std::string> insert_coordinates_range(std::span<const double> coordinates_data)
         {
             if (coordinates_data.empty())
                 return std::unexpected("Coordinates data is empty");
@@ -71,7 +77,7 @@ export namespace tpc::analytics::models
             return {};
         }
 
-        std::expected<void, std::string> InsertFieldRange(std::span<const double> field_data)
+        std::expected<void, std::string> insert_field_range(std::span<const double> field_data)
         {
             if (field_data.empty())
                 return std::unexpected("Field data is empty");
@@ -84,7 +90,7 @@ export namespace tpc::analytics::models
             return {};
         }
 
-        std::expected<void, std::string> TransformCoordinates(CoordinateType target_type)
+        std::expected<void, std::string> transform_coordinates(CoordinateType target_type)
         {
             if (coordinates_.empty())
                 return std::unexpected("Coordinates collection is empty");
@@ -123,7 +129,7 @@ export namespace tpc::analytics::models
             return {};
         }
 
-        std::expected<void, std::string> TransformField(CoordinateType target_type)
+        std::expected<void, std::string> transform_field(CoordinateType target_type)
         {
             if (field_.empty())
                 return std::unexpected("Field collection is empty");
@@ -158,6 +164,10 @@ export namespace tpc::analytics::models
             field_type_ = CoordinateType::Cartesian;
             return {};
         }
+
+        // std::expected<std::span<const double>, std::string> get_coordinate_slice(SliceDirection slice_direction,  ){
+
+        // }
 
     public:
         std::span<const double> get_field() { return field_; }

@@ -1,87 +1,114 @@
 export module tpc.analytics.output.vtk_field_exporter;
 import std;
+
 export namespace tpc::analytics::output
 {
     class VtkFieldExporter
     {
     public:
-        static std::expected<void, std::string> export_3d_field_to_vtk(std::span<const double>   field_data,
-                                                                       std::span<const double>   coordinates_data,
-                                                                       const std::string_view& file_path)
+        static std::expected<void, std::string>
+        export_3d_field_to_vtk(std::span<const double> field_data,
+                               std::span<const double> coordinates_data,
+                               std::string_view file_path)
         {
-            if (field_data.empty() || coordinates_data.empty())
-                return std::unexpected("Field data or coordinates data is empty");
+            constexpr std::size_t dimension = 3;
+
+            if (coordinates_data.empty())
+                return std::unexpected("Coordinates data is empty");
+
+            if (coordinates_data.size() % dimension != 0)
+                return std::unexpected("Coordinates data size must be divisible by 3");
+
+            const std::size_t num_points =
+                coordinates_data.size() / dimension;
+
+            if (field_data.size() != num_points * dimension)
+            {
+                return std::unexpected(std::format(
+                    "Field data must contain {} values, but contains {}",
+                    num_points * dimension,
+                    field_data.size()));
+            }
 
             if (file_path.empty())
                 return std::unexpected("File path is empty");
 
-            if (field_data.size() != coordinates_data.size())
-                return std::unexpected("Field data and coordinates data have different sizes");
-
-            const std::size_t num_points = coordinates_data.size() / 3;
-
-            std::filesystem::path path = file_path.empty() ? "Default.vtk" : std::filesystem::path{file_path};
+            const std::filesystem::path path{file_path};
 
             if (path.has_parent_path())
             {
                 std::error_code ec;
                 std::filesystem::create_directories(path.parent_path(), ec);
+
                 if (ec)
-                    return std::unexpected(std::format("Failed to create directory: {}", ec.message()));
+                    return std::unexpected(
+                        std::format("Failed to create directory: {}", ec.message()));
             }
 
             std::ofstream output(path);
             if (!output.is_open())
-                return std::unexpected(std::format("Failed to open file for writing: {}", path.string()));
+                return std::unexpected(
+                    std::format("Failed to open file for writing: {}", path.string()));
 
-            //output << std::scientific << std::setprecision(6);
+            output << std::scientific << std::setprecision(10);
 
             output << "# vtk DataFile Version 3.0\n";
             output << "TPC Analytics Field Data\n";
             output << "ASCII\n";
-            output << "DATASET STRUCTURED_GRID\n";
-            output << "DIMENSIONS " << 128 << " " << 50 << " " << 128 << "\n";
+            output << "DATASET POLYDATA\n";
 
             output << "POINTS " << num_points << " double\n";
-            for (std::size_t i = 0; i < coordinates_data.size(); i += 3)
+
+            // r, phi, z -> x, y, z
+            for (std::size_t offset = 0;
+                 offset < coordinates_data.size();
+                 offset += dimension)
             {
-                output << coordinates_data[i] << " " << coordinates_data[i + 1] << " " << coordinates_data[i + 2] << "\n";
+                const double r   = coordinates_data[offset];
+                const double phi = coordinates_data[offset + 1];
+                const double z   = coordinates_data[offset + 2];
+
+                const double x = r * std::cos(phi);
+                const double y = r * std::sin(phi);
+
+                output << x << ' ' << y << ' ' << z << '\n';
             }
 
-            output << "\nPOINT_DATA " << num_points << "\n";
+            // Описываем каждую точку как отдельную VTK-вершину.
+            output << "\nVERTICES " << num_points
+                   << ' ' << num_points * 2 << '\n';
 
-            if (field_data.size() == num_points)
-            {
-                output << "SCALARS FieldMagnitude double 1\n";
-                output << "LOOKUP_TABLE default\n";
-                for (double val : field_data)
-                {
-                    output << val << "\n";
-                }
-            }
-            else if (field_data.size() == num_points * 3)
-            {
-                output << "VECTORS VField double\n";
-                for (std::size_t i = 0; i < field_data.size(); i += 3)
-                {
-                    output << field_data[i] << " " << field_data[i + 1] << " " << field_data[i + 2] << "\n";
-                }
-            }
-            else
-            {
-                return std::unexpected(std::format(
-                    "Data size mismatch: expected {} (scalar) or {} (vector), but got {}", num_points, num_points * 3, field_data.size()));
-            }
+            for (std::size_t point_id = 0; point_id < num_points; ++point_id)
+                output << "1 " << point_id << '\n';
 
-            if (!output)
-                return std::unexpected("IO error occurred while writing VTK file (disk full?)");
+            output << "\nPOINT_DATA " << num_points << '\n';
+            output << "VECTORS MagneticField double\n";
+
+            // Br, Bphi, Bz -> Bx, By, Bz
+            for (std::size_t offset = 0;
+                 offset < field_data.size();
+                 offset += dimension)
+            {
+                const double phi  = coordinates_data[offset + 1];
+                const double br   = field_data[offset];
+                const double bphi = field_data[offset + 1];
+                const double bz   = field_data[offset + 2];
+
+                const double bx =
+                    br * std::cos(phi) - bphi * std::sin(phi);
+
+                const double by =
+                    br * std::sin(phi) + bphi * std::cos(phi);
+
+                output << bx << ' ' << by << ' ' << bz << '\n';
+            }
 
             output.flush();
-            if (!output)
-                return std::unexpected("IO error occurred while writing VTK file (disk full or write interrupted)");
 
-            output.close();
+            if (!output)
+                return std::unexpected("I/O error while writing VTK file");
+
             return {};
         }
     };
-}  // namespace tpc::analytics::output
+}

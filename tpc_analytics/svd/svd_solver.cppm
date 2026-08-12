@@ -16,7 +16,7 @@ export namespace tpc::analytics
 
     public:
         template <concepts::MeasurementConcept Measurement>
-        static std::expected<eigen::VectorXd, std::string> SolveSvd(
+        static std::expected<eigen::VectorXd, std::string> solve_svd(
             std::span<const Measurement>                                                             measurements,
             std::span<const utilities::header_function<double(std::size_t, double, double, double)>> basis_functions,
             std::size_t                                                                              modes,
@@ -28,7 +28,7 @@ export namespace tpc::analytics
             if (basis_functions.empty())
                 return std::unexpected("Basis functions collection is empty");
 
-            const std::size_t field_dim = measurements[0].GetPointComponents().size();
+            const std::size_t field_dim = measurements[0].get_point_components().size();
 
             if (basis_functions.size() != field_dim)
                 return std::unexpected("Mismatch: Number of basis functions must equal field dimensions");
@@ -41,8 +41,8 @@ export namespace tpc::analytics
 
             for (std::size_t i = 0; i < measurements.size(); ++i)
             {
-                std::span<const double> coords = measurements[i].GetPointComponents();
-                std::span<const double> values = measurements[i].GetFieldComponents();
+                std::span<const double> coords = measurements[i].get_point_components();
+                std::span<const double> values = measurements[i].get_field_components();
 
                 for (std::size_t j = 0; j < field_dim; ++j)
                 {

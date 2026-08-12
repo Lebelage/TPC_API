@@ -53,7 +53,7 @@ export namespace tpc::analytics
             if (basis_collection_.empty())
                 return std::unexpected("Basis is incorrect!");
 
-            auto result = SVDSolver::SolveSvd(measurements, basis_collection_.get_basis(), basis_collection_.get_modes(), threshold);
+            auto result = SVDSolver::solve_svd(measurements, basis_collection_.get_basis(), basis_collection_.get_modes(), threshold);
 
             if (!result)
                 return std::unexpected(result.error());
@@ -83,52 +83,30 @@ export namespace tpc::analytics
             return models::FieldComponents{.components = std::move(components), .coordinate_type = CoordinateType::Cylindric};
         }
 
-        std::expected<void, std::string> calculate_field_cylindric(std::array<const std::size_t, __DIMENSION> components,
-                                                                   double                                     radius,
-                                                                   double                                     z_length)
+        std::expected<void, std::string> calculate_field(std::array<const std::size_t, __DIMENSION> components,
+                                                         double                                     radius,
+                                                         double                                     z_length)
         {
-            // if (basis_collection_ == nullptr)
-            //     return std::unexpected("Basis is not initialized");
-
-            if (components.empty())
-                return std::unexpected("Components array is empty");
-
-            const auto dimension = basis_collection_.get_arity();
-
-            if (dimension != __DIMENSION)
-                return std::unexpected("Basis dimension mismatch");
+            if (radius <= 0.0 || z_length <= 0.0)
+                return std::unexpected("Radius and depth must be positive");
 
             field_data_ = FieldCollection(basis_collection_.get_arity(), CoordinateType::Cylindric, CoordinateType::Cylindric);
 
-            const std::size_t count_r   = std::max<std::size_t>(1, components[0]);
-            const std::size_t count_phi = std::max<std::size_t>(1, components[1]);
-            const std::size_t count_z   = std::max<std::size_t>(1, components[2]);
+            calculate_grid_kernel(components, radius, z_length);
 
-            const std::size_t capacity = components[0] * components[1] * components[2];
+            std::vector<double> coordinates_buffer{};
+            std::vector<double> field_buffer{};
 
-            field_data_->Reserve(capacity * dimension);
+            coordinates_buffer.reserve(field_data_->get_coordinates().size());
 
-            std::vector<double> coordinates_buffer;
-            std::vector<double> field_buffer;
+            coordinates_buffer.insert(
+                coordinates_buffer.begin(), field_data_->get_coordinates().begin(), field_data_->get_coordinates().end());
 
-            coordinates_buffer.reserve(capacity * dimension);
-            field_buffer.reserve(capacity * dimension);
+            field_buffer.resize(field_data_->get_coordinates().size());
 
-            coordinates_buffer.resize(capacity * dimension);
-            field_buffer.resize(capacity * dimension);
+            calculate_field_kernel(coordinates_buffer, field_buffer);
 
-            const double z_start = -z_length * 0.5;
-
-            const double dr   = (count_r > 1) ? radius / (static_cast<double>(count_r - 1)) : 0.0;
-            const double dphi = (count_phi > 1) ? (2 * std::numbers::pi / static_cast<double>(count_phi - 1)) : 0.0;
-            const double dz   = (count_z > 1) ? z_length / (static_cast<double>(count_z - 1)) : 0.0;
-
-            std::array<const double, __DIMENSION> d_components = {dr, dphi, dz};
-
-            calculate_field_kernel(components, d_components, z_start, field_buffer, coordinates_buffer);
-
-            field_data_.value().InsertCoordinatesRange(coordinates_buffer);
-            field_data_.value().InsertFieldRange(field_buffer);
+            field_data_->insert_field_range(field_buffer);
 
             return {};
         }
@@ -166,11 +144,11 @@ export namespace tpc::analytics
             if (field_data_->get_field().empty() || field_data_->get_coordinates().empty())
                 return std::unexpected("Field data is empty, cannot export to VTK");
 
-            field_data_->TransformField(CoordinateType::Cartesian);
-            auto result = field_data_->TransformCoordinates(CoordinateType::Cartesian);
+            // field_data_->transform_field(CoordinateType::Cartesian);
+            // auto result = field_data_->transform_coordinates(CoordinateType::Cartesian);
 
-            if (!result)
-                return std::unexpected("Failed to transform coordinates to Cartesian coordinates");
+            // if (!result)
+            // return std::unexpected("Failed to transform coordinates to Cartesian coordinates");
 
             tpc::analytics::output::VtkFieldExporter::export_3d_field_to_vtk(
                 field_data_.value().get_field(), field_data_.value().get_coordinates(), "output.vtk");
@@ -178,43 +156,87 @@ export namespace tpc::analytics
         }
 
     private:
-        std::expected<void, std::string> calculate_field_kernel(std::array<const std::size_t, __DIMENSION> grid,
-                                                                std::array<const double, __DIMENSION>      d_components,
-                                                                double                                     z_start,
-                                                                std::span<double>                          field_buffer,
-                                                                std::span<double>                          coordinate_buffer)
+        std::expected<void, std::string> calculate_grid_kernel(std::array<const std::size_t, __DIMENSION> grid_dimension,
+                                                               double                                     radius,
+                                                               double                                     depth)
         {
-            const auto [count_r, count_phi, count_z] = grid;
-            const auto [d_r, d_phi, d_z]             = d_components;
+            const std::size_t radial_count = grid_dimension[0];
+            const std::size_t z_count      = grid_dimension[2];
 
-            const std::size_t point_count = count_r * count_phi * count_z;
+            if (radial_count < 2 || z_count < 2)
+                return std::unexpected("Grid dimensions are too small");
+
+            if (radius <= 0.0 || depth <= 0.0)
+                return std::unexpected("Radius and depth must be positive");
+
+            const double step_xy = radius / static_cast<double>(radial_count - 1);
+
+            const double step_y = step_xy * std::sqrt(3.0) * 0.5;
+
+            const double dz             = depth / static_cast<double>(z_count - 1);
+            const double radius_squared = radius * radius;
+
+            std::vector<double> coordinates_buffer;
+
+            for (std::size_t iz = 0; iz < z_count; ++iz)
+            {
+                const double z = -depth * 0.5 + static_cast<double>(iz) * dz;
+
+                std::size_t row = 0;
+
+                for (double y = -radius; y <= radius + step_y * 0.5; y += step_y, ++row)
+                {
+                    const double x_offset = (row % 2 == 0) ? 0.0 : step_xy * 0.5;
+
+                    for (double x = -radius + x_offset; x <= radius + step_xy * 0.5; x += step_xy)
+                    {
+                        if (x * x + y * y > radius_squared)
+                            continue;
+
+                        const double r = std::hypot(x, y);
+
+                        const double phi = r < std::numeric_limits<double>::epsilon() ? 0.0 : std::atan2(y, x);
+
+                        coordinates_buffer.push_back(r);
+                        coordinates_buffer.push_back(phi);
+                        coordinates_buffer.push_back(z);
+                    }
+                }
+            }
+
+            field_data_->insert_coordinates_range(coordinates_buffer);
+
+            return {};
+        }
+
+        /// Need to rework
+        std::expected<void, std::string> calculate_field_kernel(std::span<const double> coordinates_buffer, std::span<double> field_buffer)
+        {
+            if (coordinates_buffer.size() % __DIMENSION != 0)
+                return std::unexpected("Coordinate buffer has an invalid size");
+
+            const std::size_t point_count = coordinates_buffer.size() / __DIMENSION;
+
+            if (field_buffer.size() != point_count * __DIMENSION)
+                return std::unexpected("Field buffer has an invalid size");
 
             for (std::size_t id = 0; id < point_count; ++id)
             {
-                const std::size_t i     = id % count_r;
-                const std::size_t plane = id / count_r;
-                const std::size_t j     = plane % count_phi;
-                const std::size_t k     = plane / count_phi;
+                const std::size_t offset = id * __DIMENSION;
 
-                const double r   = static_cast<double>(i) * d_r;
-                const double phi = static_cast<double>(j) * d_phi;
-                const double z   = static_cast<double>(z_start) + static_cast<double>(k) * d_z;
-
-                std::array<double, __DIMENSION> coordinates{r, phi, z};
+                const std::array<double, __DIMENSION> coordinates{
+                    coordinates_buffer[offset],
+                    coordinates_buffer[offset + 1],
+                    coordinates_buffer[offset + 2],
+                };
 
                 auto result = evaluate_for_point(coordinates);
                 if (!result)
-                    return std::unexpected("TODO ERROR");
+                    return std::unexpected("Failed to calculate field at grid point");
 
-                const std::size_t offset = id * __DIMENSION;
-
-                field_buffer[offset]     = result.value().components[0];
-                field_buffer[offset + 1] = result.value().components[1];
-                field_buffer[offset + 2] = result.value().components[2];
-
-                coordinate_buffer[offset]     = r;
-                coordinate_buffer[offset + 1] = phi;
-                coordinate_buffer[offset + 2] = z;
+                field_buffer[offset]     = result->components[0];
+                field_buffer[offset + 1] = result->components[1];
+                field_buffer[offset + 2] = result->components[2];
             }
 
             return {};

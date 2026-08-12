@@ -101,11 +101,11 @@ int main()
     auto b = manager.GenerateTPCSensorMeasurements();
 
     manager.calculate_svd_coefficients(b,0.0001);
-    //std::array<const std::size_t, tpc::analytics::__DIMENSION> components = {512, 50, 512};
 
-    std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(128, 50, 128);
+    std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(32, 32, 512);
 
-    manager.calculate_field_cylindric(arr, 2, 7);
+    //manager.calcuulate_field_cartesian(arr, 4,4,7);
+    manager.calculate_field(arr, 2, 7);
 
     manager.export_to_vtk();
     return 0;
