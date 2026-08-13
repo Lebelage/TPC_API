@@ -2,6 +2,7 @@ import tpc.analytics.analytics_manager;
 import tpc.analytics.svd.basis;
 import tpc.analytics.models.three_dimension_model;
 import tpc.core.definitions.analytics_definitions;
+import tpc.system.data_receiver;
 
 import std;
 
@@ -94,19 +95,53 @@ static double BasisZ(int k, double r, double phi, double z)
 
 int main()
 {
-    auto a  = tpc::analytics::AnalyticsManager::create_default_basis(BasisR, BasisPhi, BasisZ, 10);
-    
-    auto manager = tpc::analytics::AnalyticsManager::create(std::move(a)).value();
+    auto receiver_result = tpc::system::DataReceiver::create(
+        "opc.tcp://127.0.0.1:1234",
+        [](std::vector<double> samples)
+        {
+            // Этот код выполняется в пуле stdexec.
+            if (samples.empty())
+                return;
 
-    auto b = manager.GenerateTPCSensorMeasurements();
+            std::println(
+                "Received {} samples; first = {}",
+                samples.size(),
+                samples.front());
 
-    manager.calculate_svd_coefficients(b,0.0001);
+            // Здесь:
+            // 1. фильтрация samples;
+            // 2. преобразование в Measurement;
+            // 3. передача в AnalyticsManager.
+        });
 
-    std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(32, 32, 512);
+    if (!receiver_result) {
+        // std::println(stderr,
+        //              "Cannot create receiver: {}",
+        //              receiver_result.error());
+        return 1;
+    }
 
-    //manager.calcuulate_field_cartesian(arr, 4,4,7);
-    manager.calculate_field(arr, 2, 7);
+    auto receiver = std::move(receiver_result.value());
+    receiver->start();
 
-    manager.export_to_vtk();
+    // Основное приложение продолжает работать.
+    //std::this_thread::sleep_for(std::chrono::seconds{30});
+
+    receiver->stop();
+
+    // auto a  = tpc::analytics::AnalyticsManager::create_default_basis(BasisR, BasisPhi, BasisZ, 10);
+    //
+    // auto manager = tpc::analytics::AnalyticsManager::create(std::move(a)).value();
+    //
+    // auto b = manager.GenerateTPCSensorMeasurements();
+    //
+    // manager.calculate_svd_coefficients(b,0.0001);
+    //
+    // std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(32, 32, 512);
+    //
+    // //manager.calcuulate_field_cartesian(arr, 4,4,7);
+    // manager.calculate_field(arr, 2, 7);
+    //
+    // manager.export_to_vtk();
     return 0;
 }
