@@ -1,8 +1,10 @@
+#include <thread>
 import tpc.analytics.analytics_manager;
 import tpc.analytics.svd.basis;
 import tpc.analytics.models.three_dimension_model;
 import tpc.core.definitions.analytics_definitions;
 import tpc.system.data_receiver;
+import tpc.system.connection;
 
 import std;
 
@@ -95,53 +97,18 @@ static double BasisZ(int k, double r, double phi, double z)
 
 int main()
 {
-    auto receiver_result = tpc::system::DataReceiver::create(
-        "opc.tcp://127.0.0.1:1234",
-        [](std::vector<double> samples)
-        {
-            // Этот код выполняется в пуле stdexec.
-            if (samples.empty())
-                return;
-
-            std::println(
-                "Received {} samples; first = {}",
-                samples.size(),
-                samples.front());
-
-            // Здесь:
-            // 1. фильтрация samples;
-            // 2. преобразование в Measurement;
-            // 3. передача в AnalyticsManager.
-        });
-
-    if (!receiver_result) {
-        // std::println(stderr,
-        //              "Cannot create receiver: {}",
-        //              receiver_result.error());
+    auto connection_result = tpc::system::Connection::create("opc.tcp://127.0.0.1:1234");
+    if (!connection_result)
+    {
         return 1;
     }
+    auto connection = std::move(connection_result.value());
 
-    auto receiver = std::move(receiver_result.value());
-    receiver->start();
-
-    // Основное приложение продолжает работать.
-    //std::this_thread::sleep_for(std::chrono::seconds{30});
-
-    receiver->stop();
-
-    // auto a  = tpc::analytics::AnalyticsManager::create_default_basis(BasisR, BasisPhi, BasisZ, 10);
-    //
-    // auto manager = tpc::analytics::AnalyticsManager::create(std::move(a)).value();
-    //
-    // auto b = manager.GenerateTPCSensorMeasurements();
-    //
-    // manager.calculate_svd_coefficients(b,0.0001);
-    //
-    // std::array<const std::size_t, tpc::analytics::__DIMENSION> arr = tpc::analytics::AnalyticsManager::create_grid(32, 32, 512);
-    //
-    // //manager.calcuulate_field_cartesian(arr, 4,4,7);
-    // manager.calculate_field(arr, 2, 7);
-    //
-    // manager.export_to_vtk();
+    connection->subscribe_handlers();
+    connection->connect_async();
+    connection->run();
+    // //connection->browse_async();
+    
+    // std::this_thread::sleep_for(std::chrono::seconds(15));
     return 0;
 }
