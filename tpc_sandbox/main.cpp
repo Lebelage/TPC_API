@@ -1,4 +1,4 @@
-#include <thread>
+
 import tpc.analytics.analytics_manager;
 import tpc.analytics.svd.basis;
 import tpc.analytics.models.three_dimension_model;
@@ -97,18 +97,21 @@ static double BasisZ(int k, double r, double phi, double z)
 
 int main()
 {
-    auto connection_result = tpc::system::Connection::create("opc.tcp://127.0.0.1:1234");
-    if (!connection_result)
-    {
-        return 1;
-    }
-    auto connection = std::move(connection_result.value());
+    auto my_task() -> stdexec::task
+    stdexec::
 
-    connection->subscribe_handlers();
-    connection->connect_async();
-    connection->run();
-    // //connection->browse_async();
+    // auto connection_result = tpc::system::Connection::create("opc.tcp://127.0.0.1:1234");
+    // if (!connection_result)
+    // {
+    //     return 1;
+    // }
+    // auto connection = std::move(connection_result.value());
+
+    // connection->subscribe_handlers();
+    // connection->connect_async();
+    // connection->run();
+    // // //connection->browse_async();
     
-    // std::this_thread::sleep_for(std::chrono::seconds(15));
+    // // std::this_thread::sleep_for(std::chrono::seconds(15));
     return 0;
 }

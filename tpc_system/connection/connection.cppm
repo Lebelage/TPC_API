@@ -9,6 +9,7 @@ module;
 #include <open62541pp/types.hpp>
 #include <open62541pp/ua/nodeids.hpp>
 #include <open62541pp/ua/types.hpp>
+#include <stdexec/__detail/__task.hpp>
 #include <string_view>
 
 export module tpc.system.connection;
@@ -25,6 +26,10 @@ export namespace tpc::system
             try
             {
                 auto connection = std::unique_ptr<Connection>(new Connection(endpoint));
+                auto my_task() -> stdexec::task<int>
+                {
+                    co_return 5;
+                };
 
                 return connection;
             }
@@ -133,6 +138,8 @@ export namespace tpc::system
 
             opcua::services::browseAsync(*client_, description, 0, std::forward<Callback>(callback));
         }
+
+        void discover_channels() {}
 
         void discover_channels_async()
         {
