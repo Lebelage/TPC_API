@@ -1,59 +1,28 @@
----
-# Базовый стиль
-BasedOnStyle: Google
-
-# Стандарт языка (C++23)
+BasedOnStyle: LLVM
 Standard: Latest
 
-# Длина строки (под вашу настройку Hard Wrap)
-ColumnLimit: 140
+ColumnLimit: 120
 
-# Отступы
 IndentWidth: 4
 ContinuationIndentWidth: 4
 AccessModifierOffset: -4
+NamespaceIndentation: None
 
-# Отступы внутри namespace (чтобы класс Device не прилипал к краю)
-NamespaceIndentation: All
-
-# Управление указателями: const char* string
 PointerAlignment: Left
+BreakBeforeBraces: Attach
 
-# С++20/C++23 Настройки для модулей и инклудов
 SortIncludes: true
 IncludeBlocks: Regroup
-IncludeCategories:
-  - Regex: '^<.*'
-    Priority: 1
-    SortPriority: 1
-  - Regex: '.*'
-    Priority: 2
-    SortPriority: 2
 
-# Расположение фигурных скобок: классический стиль Allman (скобка на новой строке)
-BreakBeforeBraces: Allman
+AlignConsecutiveDeclarations: Consecutive
+AlignConsecutiveAssignments: Consecutive
 
-# Выравнивание таблицей (красиво выстраивает типы, имена и знаки '=')
-AlignConsecutiveDeclarations: true
-AlignConsecutiveAssignments: true
+BinPackArguments: true
+BinPackParameters: true
 
-# Настройки для красивых структур (особенно полезно для vk::ApplicationInfo и т.д.)
-AlignAfterOpenBracket: Align
-Cpp11BracedListStyle: true
-BinPackArguments: false
-BinPackParameters: false
-
-# Переносы строк
 AllowShortBlocksOnASingleLine: Never
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
-AllowShortLoopsOnASingleLine: false
 
-# Разрывать строки перед операторами (красиво переносит пайплайны типа | std::views::transform)
 BreakBeforeBinaryOperators: NonAssignment
-
-# Пробелы в квадратных скобках лямбд
-SpacesInContainerLiterals: false
-
-# Автоматически форматировать блоки комментариев
 ReflowComments: true
