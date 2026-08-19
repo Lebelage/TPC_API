@@ -239,6 +239,8 @@ private:
 
             std::cerr << "Create subscription failed: " << error.what() << '\n';
         }
+
+        opcua::services::createMonitoredItemsDataChangeAsync(,)
     }
 
 private:
