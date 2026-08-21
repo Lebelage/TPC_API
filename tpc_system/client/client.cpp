@@ -90,7 +90,7 @@ void Client::stop() {
 
 #pragma region Private methods
 
-auto Client::initialize() -> std::expected<void, std::string> {
+auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
     auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
                 | stdexec::let_value([this](models::DiscoveryResult discovery) {
                     channels_info = std::move(discovery);
@@ -110,12 +110,12 @@ auto Client::initialize() -> std::expected<void, std::string> {
     return {};
 }
 
-auto Client::initialize_handlers() -> std::expected<void, std::string> {
+auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
     if (!client_)
         return std::unexpected("Client is not initialized");
 
     client_->onSessionActivated([this] {
-        initialize();
+        initialize_monitored_items();
     });
 
     client_->onSessionClosed([] {

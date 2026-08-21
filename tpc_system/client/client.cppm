@@ -34,9 +34,9 @@ public:
     bool is_running() const;
 
 private:
-    [[nodiscard]] auto initialize_handlers() -> std::expected<void, std::string>;
+    [[nodiscard]] auto initialize_opcua_handlers() -> std::expected<void, std::string>;
 
-    [[nodiscard]] auto initialize() -> std::expected<void, std::string>;
+    [[nodiscard]] auto initialize_monitored_items() -> std::expected<void, std::string>;
 
     [[nodiscard]] auto create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void>;
 
