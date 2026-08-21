@@ -13,7 +13,7 @@ struct DiscoveryState {
 };
 
 struct DiscoveryResult {
-    DiscoveryState           channels_state;
-    std::vector<std::string> detector_names;
+    std::vector<opcua::NodeId> channels;
+    std::vector<std::string> names;
 };
 } // namespace tpc::system::models
