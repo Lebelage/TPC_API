@@ -42,7 +42,7 @@ std::expected<bool, std::string> Client::connect_async() {
 
     stop_requested_ = false;
 
-    initialize_handlers();
+    initialize_opcua_handlers();
 
     auto task = stdexec::schedule(opcua_pool_.get_scheduler()) | stdexec::then([this] {
                     if (!client_)
