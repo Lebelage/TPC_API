@@ -1,11 +1,12 @@
 module;
+#include <expected>
+#include <span>
+
 #include "open62541pp/services/detail/client_service.hpp"
 #include "open62541pp/services/monitoreditem.hpp"
 #include "open62541pp/services/subscription.hpp"
 export module tpc.system.client.subscription;
-import std;
-import tpc.system.client.event_handler;
-
+import tpc.utilities.event_handler;
 export namespace tpc::system::client {
 
 struct DefaultSubscriptionConfig;
@@ -29,8 +30,6 @@ public:
     std::expected<void, std::string> create_subscription(opcua::Client& client,
                                                          std::span<const opcua::NodeId> channels_id);
 
-
-
     std::expected<void, std::string> create_monitored_items(opcua::Client& client,
                                                             opcua::CreateSubscriptionResponse& response,
                                                             std::span<const opcua::NodeId> channels_id);
@@ -43,8 +42,10 @@ private:
 
 private:
     void Release(opcua::IntegerId subscription_id) noexcept;
+
 public:
-    EventHandler<std::string> error_occurred_;
-    EventHandler<opcua::NodeId, opcua::DataValue> data_received_;
+    utilities:: event_handler<std::string> info_occurred_;
+    utilities:: event_handler<std::string> error_occurred_;
+    utilities::event_handler<opcua::NodeId, opcua::DataValue> data_received_;
 };
 } // namespace tpc::system::client

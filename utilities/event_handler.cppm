@@ -1,9 +1,10 @@
-export module tpc.system.client.event_handler;
-import std;
-export namespace tpc::system::client {
-
+module;
+#include <unordered_map>
+#include <functional>
+export module tpc.utilities.event_handler;
+export namespace tpc::utilities {
     template<class... Args>
-    class EventHandler {
+    class event_handler {
     public:
         using Handler = std::function<void(Args...)>;
         using Id = std::uint64_t;

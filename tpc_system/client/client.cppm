@@ -7,7 +7,10 @@ export module tpc.system.client;
 import std;
 
 import tpc.system.models.data;
+import tpc.system.client.frame_receiver;
 import tpc.system.client.subscription;
+import tpc.utilities.event_handler;
+import tpc.core.definitions.client_definitions;
 
 export namespace tpc::system::client {
 
@@ -50,13 +53,25 @@ private:
 
     [[nodiscard]] auto find_slot_ids(const opcua::BrowseResult& result) -> std::vector<opcua::NodeId>;
 
-    [[nodiscard]] auto append_channels(tpc::system::models::DiscoveryResult& result,
+    auto append_channels(tpc::system::models::DiscoveryResult& result,
                                        const opcua::BrowseResult& slot_result) -> void;
+
+private:
+    auto on_subscription_data_received(opcua::NodeId, opcua::DataValue) -> void;
+    auto on_subscription_error_occurred(std::string) -> void;
+    auto on_subscription_info_occurred(std::string) -> void;
+
+private:
+    utilities::event_handler<std::string> error_occurred_;
+    utilities::event_handler<std::string> warning_occurred_;
+    utilities::event_handler<std::string> info_occurred_;
 
 private:
     std::unique_ptr<opcua::Client> client_;
     std::unique_ptr<tpc::system::client::Subscription> subscription_;
     std::string endpoint_;
+
+    std::unique_ptr<FrameReceiver> frame_receiver_;
 
     bool session_state_{false};
     bool discovery_started_{false};

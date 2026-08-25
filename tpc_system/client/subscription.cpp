@@ -1,7 +1,13 @@
-module tpc.system.client.subscription;
+module;
 #include "open62541pp/services/subscription.hpp"
 
+#include <expected>
+#include <iostream>
+#include <open62541pp/client.hpp>
+
 #include "open62541pp/services/monitoreditem.hpp"
+
+module tpc.system.client.subscription;
 
 namespace tpc::system::client {
 
@@ -56,40 +62,27 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
         subscription_id_ = response.subscriptionId();
 
         for (const auto& channel : channels_id) {
-            ///
-            std::cout << "Создаю monitored item для: " << opcua::toString(channel) << '\n';
-
             auto read_value = opcua::ReadValueId{channel, opcua::AttributeId::Value};
             opcua::services::createMonitoredItemDataChangeAsync(
                 client, *subscription_id_, read_value, opcua::MonitoringMode::Reporting, parameters,
                 [this, channel](opcua::IntegerId, opcua::IntegerId, const opcua::DataValue& value) noexcept {
                     try {
                         data_received_(channel, value);
-                        value.value().to<std::string>();
-                        ///
-                        std::cout << std::format("Monitored item was created: {}", value.value().to<std::string>())
-                                  << "\n";
-
                     } catch (std::exception& ex) {
                         error_occurred_(ex.what());
                     }
                 },
                 [this, channel](opcua::IntegerId id, opcua::IntegerId monId) noexcept {
-                    error_occurred_.emit(std::format("Monitored item was deleted: {}", channel.toString()));
-
-                    ///
-                    std::cout << std::format("Monitored item was deleted: {}", channel.toString()) << "\n";
+                    info_occurred_.emit(std::format("Monitored item was deleted: {}", channel.toString()));
                 },
                 [this, channel](opcua::MonitoredItemCreateResult& result) noexcept {
                     try {
                         result.statusCode().throwIfBad();
-
                         monitored_item_ids_.push_back(result.monitoredItemId());
+
+                        info_occurred_.emit(std::format("Monitored item was created: {}", channel.toString()));
                     } catch (const std::exception& error) {
                         error_occurred_.emit(std::format("Cannot monitor {}: {}", channel.toString(), error.what()));
-
-                        ///
-                        std::cout << std::format("Cannot monitor {}: {}", channel.toString(), error.what()) << "\n";
                     }
                 });
         }

@@ -2,6 +2,7 @@ module;
 #include <exec/start_detached.hpp>
 #include <open62541pp/client.hpp>
 #include <stdexec/execution.hpp>
+
 module tpc.system.client;
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
 
@@ -13,21 +14,41 @@ namespace tpc::system::client {
     try {
         return std::unique_ptr<Client>{new Client(endpoint)};
     } catch (const std::exception& error) {
-        return std::unexpected{std::format("Failed to create TPC client: {}", error.what())};
+        return std::unexpected{
+            std::format("[{}]: Failed to create TPC client: {}", core::definitions::CLIENT_ERROR__, error.what())};
     } catch (...) {
-        return std::unexpected{"Failed to create TPC client: unknown error"};
-    }
+        return std::unexpected(
+            std::format("[{}]: Failed to create TPC client: unknown error", core::definitions::CLIENT_ERROR__));
+    };
 };
 
 Client::Client(std::string endpoint)
     : client_{std::make_unique<opcua::Client>()}, opcua_pool_(1), processing_pool_(2), endpoint_(endpoint) {
-    auto result = Subscription::create();
+    auto subscription_result = Subscription::create();
 
-    if (!result)
+    if (!subscription_result)
         return;
 
-    subscription_ = std::move(result.value());
-    subscription_->error_occurred_.subscribe([](std::string str) {std::cout << str << std::endl; });
+    subscription_ = std::move(subscription_result.value());
+
+    subscription_->data_received_.subscribe([this](opcua::NodeId channel, opcua::DataValue value) {
+        on_subscription_data_received(channel, value);
+    });
+
+    subscription_->error_occurred_.subscribe([this](std::string str) {
+        on_subscription_error_occurred(str);
+    });
+
+    subscription_->info_occurred_.subscribe([this](std::string str) {
+        on_subscription_info_occurred(str);
+    });
+
+    auto frame_receiver_result = FrameReceiver::create(36);
+
+    if (!frame_receiver_result)
+        return;
+
+    frame_receiver_ = std::move(frame_receiver_result.value());
 }
 
 #pragma endregion
@@ -42,7 +63,10 @@ std::expected<bool, std::string> Client::connect_async() {
 
     stop_requested_ = false;
 
-    initialize_opcua_handlers();
+    auto result = initialize_opcua_handlers();
+
+    if (!result)
+        return false;
 
     auto task = stdexec::schedule(opcua_pool_.get_scheduler()) | stdexec::then([this] {
                     if (!client_)
@@ -70,6 +94,7 @@ std::expected<bool, std::string> Client::connect_async() {
                       try {
                           std::rethrow_exception(error);
                       } catch (const std::exception& ex) {
+                          error_occurred_.emit(ex.what());
                           std::cerr << "TPC client error: " << ex.what() << '\n';
                       }
                   });
@@ -93,17 +118,17 @@ void Client::stop() {
 auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
     auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
                 | stdexec::let_value([this](models::DiscoveryResult discovery) {
-                    channels_info = std::move(discovery);
+                      channels_info = std::move(discovery);
 
-                    return create_subscription(channels_info);
-                })
+                      return create_subscription(channels_info);
+                  })
                 | stdexec::upon_error([this](std::exception_ptr error) noexcept {
-                    try {
-                        std::rethrow_exception(error);
-                    } catch (const std::exception& ex) {
-                        //report_error(ex.what());
-                    }
-                });
+                      try {
+                          std::rethrow_exception(error);
+                      } catch (const std::exception& ex) {
+                          // report_error(ex.what());
+                      }
+                  });
 
     exec::start_detached(std::move(task));
 
@@ -115,15 +140,18 @@ auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
         return std::unexpected("Client is not initialized");
 
     client_->onSessionActivated([this] {
-        initialize_monitored_items();
+        auto result = initialize_monitored_items();
+
+        if (!result)
+            error_occurred_.emit(result.error());
     });
 
-    client_->onSessionClosed([] {
-        std::cout << "OPC UA session closed\n";
+    client_->onSessionClosed([this] {
+        warning_occurred_.emit("OPC UA session closed");
     });
 
     client_->onInactive([this] {
-        // report_error("OPC UA client became inactive");
+        warning_occurred_.emit("OPC UA client became inactive");
     });
 
     return {};
@@ -142,6 +170,8 @@ auto Client::start_discovery() -> std::expected<void, std::string> {
     auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders());
 
     exec::start_detached(std::move(task));
+
+    return {};
 }
 
 auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult> {
@@ -209,10 +239,27 @@ auto Client::append_channels(tpc::system::models::DiscoveryResult& result, const
         }
         result.channels.push_back(reference.nodeId().nodeId());
         result.names.push_back(std::string{reference.browseName().name()});
-
-        ///
-        std::cout << reference.browseName().name() << "\n";
     }
+}
+
+#pragma endregion
+
+#pragma region Handlers
+
+auto Client::on_subscription_data_received(opcua::NodeId node, opcua::DataValue value) -> void {
+    const auto values = value.value().array<double>();
+
+    double average = std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
+
+    frame_receiver_->add_back(std::string{node.identifier<opcua::String>()}, average);
+}
+
+auto Client::on_subscription_error_occurred(std::string message) -> void {
+    std::cout << core::definitions::CLIENT_ERROR__ << ": " << message << "\n";
+}
+
+auto Client::on_subscription_info_occurred(std::string message) -> void {
+    std::cout << core::definitions::CLIENT_INFO__ << ": " << message << "\n";
 }
 
 #pragma endregion
