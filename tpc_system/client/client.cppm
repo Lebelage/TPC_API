@@ -36,6 +36,8 @@ public:
 
     bool is_running() const;
 
+    auto get_frame() -> void;
+
 private:
     [[nodiscard]] auto initialize_opcua_handlers() -> std::expected<void, std::string>;
 
@@ -55,6 +57,7 @@ private:
 
     auto append_channels(tpc::system::models::DiscoveryResult& result,
                                        const opcua::BrowseResult& slot_result) -> void;
+
 
 private:
     auto on_subscription_data_received(opcua::NodeId, opcua::DataValue) -> void;
@@ -82,8 +85,6 @@ private:
 
     std::vector<opcua::NodeId> ids_;
     std::mutex handlers_mutex_;
-    // UpdateHandler update_handler_;
-    // ErrorHandler error_handler_;
 
     std::atomic_bool running_{false};
     std::atomic_bool stop_requested_{false};

@@ -107,8 +107,15 @@ bool Client::is_running() const {
     return running_.load();
 }
 
+
 void Client::stop() {
     stop_requested_ = true;
+}
+
+auto Client::get_frame() -> void {
+    auto a = frame_receiver_->get_frame();
+    if (!a)
+        return;
 }
 
 #pragma endregion
@@ -126,7 +133,7 @@ auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
                       try {
                           std::rethrow_exception(error);
                       } catch (const std::exception& ex) {
-                          // report_error(ex.what());
+                          error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
                       }
                   });
 
@@ -143,15 +150,15 @@ auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
         auto result = initialize_monitored_items();
 
         if (!result)
-            error_occurred_.emit(result.error());
+            error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, result.error()));
     });
 
     client_->onSessionClosed([this] {
-        warning_occurred_.emit("OPC UA session closed");
+        info_occurred_.emit(std::format("[{}]: OPC UA session closed", core::definitions::CLIENT_INFO__));
     });
 
     client_->onInactive([this] {
-        warning_occurred_.emit("OPC UA client became inactive");
+        info_occurred_.emit(std::format("[{}]: OPC UA client became inactive", core::definitions::CLIENT_INFO__));
     });
 
     return {};
@@ -255,11 +262,11 @@ auto Client::on_subscription_data_received(opcua::NodeId node, opcua::DataValue 
 }
 
 auto Client::on_subscription_error_occurred(std::string message) -> void {
-    std::cout << core::definitions::CLIENT_ERROR__ << ": " << message << "\n";
+    error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, message));
 }
 
 auto Client::on_subscription_info_occurred(std::string message) -> void {
-    std::cout << core::definitions::CLIENT_INFO__ << ": " << message << "\n";
+    info_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_INFO__, message));
 }
 
 #pragma endregion
