@@ -1,5 +1,10 @@
+module;
+#include <expected>
+#include <string>
+#include <vector>
+#include <format>
+#include <numbers>
 export module tpc.analytics.analytics_manager;
-import std;
 
 import tpc.utilities.header_function;
 import tpc.third_party.eigen;

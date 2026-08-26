@@ -1,7 +1,11 @@
+module;
+#include <expected>
+#include <string>
+
 export module tpc.analytics.svd.basis;
-import std;
 import tpc.utilities.header_function;
 import tpc.analytics.models.three_dimension_model;
+
 export namespace tpc::analytics
 {
     class BasisCollection

@@ -1,6 +1,8 @@
+module;
+#include <expected>
+#include <functional>
+#include <span>
 export module tpc.analytics.svd_solver;
-import std;
-
 import tpc.analytics.models.three_dimension_model;
 import tpc.third_party.eigen;
 import tpc.utilities.header_function;

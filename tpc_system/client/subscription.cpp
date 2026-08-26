@@ -1,13 +1,11 @@
-module;
-#include "open62541pp/services/subscription.hpp"
-
-#include <expected>
+#include <format>
 #include <iostream>
-#include <open62541pp/client.hpp>
 
+#include "open62541pp/services/subscription.hpp"
+#include <open62541pp/client.hpp>
 #include "open62541pp/services/monitoreditem.hpp"
 
-module tpc.system.client.subscription;
+#include "subscription.hpp"
 
 namespace tpc::system::client {
 
@@ -73,7 +71,7 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
                     }
                 },
                 [this, channel](opcua::IntegerId id, opcua::IntegerId monId) noexcept {
-                    info_occurred_.emit(std::format("Monitored item was deleted: {}", channel.toString()));
+                    info_occurred_(std::format("Monitored item was deleted: {}", channel.toString()));
                 },
                 [this, channel](opcua::MonitoredItemCreateResult& result) noexcept {
                     try {

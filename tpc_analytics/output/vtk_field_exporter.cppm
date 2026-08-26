@@ -1,5 +1,12 @@
+module;
+#include <expected>
+#include <filesystem>
+#include <format>
+#include <span>
+#include <string>
+#include <system_error>
+#include <fstream>
 export module tpc.analytics.output.vtk_field_exporter;
-import std;
 
 export namespace tpc::analytics::output
 {

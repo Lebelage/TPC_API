@@ -1,5 +1,7 @@
+module;
+#include <concepts>
+#include <span>
 export module tpc.analytics.concepts.measurement_concept;
-import std;
 export namespace tpc::analytics::concepts
 {
     template <typename T>

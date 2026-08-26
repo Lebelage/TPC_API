@@ -1,5 +1,12 @@
+module;
+#include <expected>
+#include <span>
+#include <vector>
+#include <cmath>
+#include <ranges>
+#include <algorithm>
+
 export module tpc.analytics.models.three_dimension_model;
-import std;
 
 import tpc.utilities.chunkview;
 

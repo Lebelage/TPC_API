@@ -1,9 +1,4 @@
-module;
-#include <expected>
-#include <iostream>
-#include <mutex>
-module tpc.system.client.frame_receiver;
-
+#include "frame_receiver.hpp"
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor
@@ -48,11 +43,11 @@ std::expected<void, std::string> FrameReceiver::add_back(std::string name, doubl
     return {};
 }
 
-std::optional<std::vector<ReceivedItem>> FrameReceiver::get_frame() const {
+std::vector<ReceivedItem> FrameReceiver::get_frame() const {
     std::lock_guard lock{mutex_};
 
     if (received_queue_.empty())
-        return std::nullopt;
+        return std::vector<ReceivedItem>{};
 
     return received_queue_;
 }

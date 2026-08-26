@@ -1,10 +1,14 @@
-module;
+#include <memory>
+#include <vector>
+
 #include <exec/start_detached.hpp>
 #include <open62541pp/client.hpp>
 #include <stdexec/execution.hpp>
 
-module tpc.system.client;
+#include "client.hpp"
+
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
+import tpc.core.definitions.client_definitions;
 
 namespace tpc::system::client {
 
@@ -95,7 +99,6 @@ std::expected<bool, std::string> Client::connect_async() {
                           std::rethrow_exception(error);
                       } catch (const std::exception& ex) {
                           error_occurred_.emit(ex.what());
-                          std::cerr << "TPC client error: " << ex.what() << '\n';
                       }
                   });
 
@@ -107,15 +110,17 @@ bool Client::is_running() const {
     return running_.load();
 }
 
-
 void Client::stop() {
     stop_requested_ = true;
 }
 
-auto Client::get_frame() -> void {
-    auto a = frame_receiver_->get_frame();
-    if (!a)
-        return;
+auto Client::get_frame() -> std::optional<std::vector<ReceivedItem>> {
+    auto frame = frame_receiver_->get_frame();
+
+    if (frame.empty())
+        return std::nullopt;
+
+    return frame;
 }
 
 #pragma endregion

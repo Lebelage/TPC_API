@@ -1,5 +1,10 @@
+module;
+#include <algorithm>
+#include <span>
+#include <stdexcept>
+
 export module tpc.utilities.chunkview;
-import std;
+
 export namespace tpc::utilities {
     template<typename T>
     class ChunkView {
