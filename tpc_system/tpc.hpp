@@ -32,6 +32,7 @@ public:
     auto start_async() -> void;
     auto stop_async() -> void;
     auto is_running() -> bool;
+
     auto get_frame_request() -> std::optional<std::vector<ReceivedItem>>;
 
 private:
