@@ -1,10 +1,10 @@
+#include "open62541pp/services/subscription.hpp"
+
 #include <format>
 #include <iostream>
-
-#include "open62541pp/services/subscription.hpp"
 #include <open62541pp/client.hpp>
-#include "open62541pp/services/monitoreditem.hpp"
 
+#include "open62541pp/services/monitoreditem.hpp"
 #include "subscription.hpp"
 
 namespace tpc::system::client {
@@ -30,12 +30,17 @@ std::expected<std::unique_ptr<Subscription>, std::string> Subscription::create()
 
 Subscription::Subscription(opcua::services::SubscriptionParameters parameters) : parameters_(parameters) {}
 
+Subscription::~Subscription() {
+
+};
 #pragma endregion
 
 #pragma region Public methods
 
 std::expected<void, std::string> Subscription::create_subscription(opcua::Client& client,
                                                                    std::span<const opcua::NodeId> channels_id) {
+    node_ids_ = std::vector<opcua::NodeId>{channels_id.begin(), channels_id.end()};
+
     opcua::services::createSubscriptionAsync(
         client, parameters_, true, nullptr,
         [this](opcua::IntegerId subscription_id) {
@@ -58,36 +63,34 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
         response.responseHeader().serviceResult().throwIfBad();
 
         subscription_id_ = response.subscriptionId();
-
-        for (const auto& channel : channels_id) {
-            auto read_value = opcua::ReadValueId{channel, opcua::AttributeId::Value};
+        for (const auto& node : node_ids_) {
+            auto read_value = opcua::ReadValueId{node, opcua::AttributeId::Value};
             opcua::services::createMonitoredItemDataChangeAsync(
                 client, *subscription_id_, read_value, opcua::MonitoringMode::Reporting, parameters,
-                [this, channel](opcua::IntegerId, opcua::IntegerId, const opcua::DataValue& value) noexcept {
+                [this, node](opcua::IntegerId, opcua::IntegerId, const opcua::DataValue& value) noexcept {
                     try {
-                        data_received_(channel, value);
+                        data_received_(node, value);
                     } catch (std::exception& ex) {
                         error_occurred_(ex.what());
                     }
                 },
-                [this, channel](opcua::IntegerId id, opcua::IntegerId monId) noexcept {
-                    info_occurred_(std::format("Monitored item was deleted: {}", channel.toString()));
+                [this, node](opcua::IntegerId id, opcua::IntegerId monId) noexcept {
+                    info_occurred_(std::format("Monitored item was deleted: {}", node.toString()));
                 },
-                [this, channel](opcua::MonitoredItemCreateResult& result) noexcept {
+                [this, node](opcua::MonitoredItemCreateResult& result) noexcept {
                     try {
                         result.statusCode().throwIfBad();
                         monitored_item_ids_.push_back(result.monitoredItemId());
 
-                        info_occurred_.emit(std::format("Monitored item was created: {}", channel.toString()));
+                        info_occurred_.invoke(std::format("Monitored item was created: {}", node.toString()));
                     } catch (const std::exception& error) {
-                        error_occurred_.emit(std::format("Cannot monitor {}: {}", channel.toString(), error.what()));
+                        error_occurred_.invoke(std::format("Cannot monitor {}: {}", node.toString(), error.what()));
                     }
                 });
         }
 
     } catch (std::exception& ex) {
-        error_occurred_.emit(ex.what());
-        std::cout << ex.what() << "\n";
+        error_occurred_.invoke(ex.what());
     }
 
     return {};

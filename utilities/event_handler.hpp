@@ -1,49 +1,72 @@
 #pragma once
-#include <unordered_map>
+
+#include <cstdint>
 #include <functional>
+#include <unordered_map>
+#include <utility>
+
 namespace tpc::utilities {
-    template<class... Args>
-    class event_handler {
-    public:
-        using Handler = std::function<void(Args...)>;
-        using Id = std::uint64_t;
 
-        [[nodiscard]] Id subscribe(Handler handler)
-        {
-            const Id id = next_id_++;
+template<class... Args>
+class event_handler {
+public:
+    using Handler = std::function<void(Args...)>;
+    using Id = std::uint64_t;
 
-            handlers_.emplace(id, std::move(handler));
+    [[nodiscard]]
+    Id subscribe(Handler handler)
+    {
+        const Id id = next_id_++;
 
-            return id;
+        handlers_.emplace(
+            id,
+            std::move(handler)
+        );
+
+        return id;
+    }
+
+    void unsubscribe(Id id)
+    {
+        handlers_.erase(id);
+    }
+
+    void release() noexcept
+    {
+        handlers_.clear();
+
+        next_id_ = 1;
+    }
+
+    void invoke(Args... args) const
+    {
+        const auto handlers = handlers_;
+
+        for (const auto& [id, handler] : handlers) {
+            handler(args...);
         }
+    }
 
-        void unsubscribe(Id id)
-        {
-            handlers_.erase(id);
-        }
+    void operator()(Args... args) const
+    {
+        invoke(std::forward<Args>(args)...);
+    }
 
-        void emit(Args... args) const
-        {
-            const auto handlers = handlers_;
+    [[nodiscard]]
+    bool empty() const noexcept
+    {
+        return handlers_.empty();
+    }
 
-            for (const auto& [id, handler] : handlers)
-            {
-                handler(args...);
-            }
-        }
+    [[nodiscard]]
+    std::size_t size() const noexcept
+    {
+        return handlers_.size();
+    }
 
-        void operator()(Args... args) const
-        {
-            emit(std::forward<Args>(args)...);
-        }
+private:
+    Id next_id_{1};
+    std::unordered_map<Id, Handler> handlers_;
+};
 
-        [[nodiscard]] bool empty() const noexcept
-        {
-            return handlers_.empty();
-        }
-
-    private:
-        Id next_id_ = 1;
-        std::unordered_map<Id, Handler> handlers_;
-    };
 }

@@ -4,9 +4,6 @@ import tpc.analytics.analytics_manager;
 import tpc.analytics.svd.basis;
 import tpc.analytics.models.three_dimension_model;
 import tpc.core.definitions.analytics_definitions;
-
-import std;
-
 static double BasisR(int k, double r, double phi, double z)
 {
     switch (k)
@@ -98,12 +95,13 @@ int main()
 {
     auto b = tpc::system::TPC::create("opc.tcp://127.0.0.1:1234");
     b.value()->start_async();
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     b.value()->stop_async();
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+    b.value()->start_async();
+    //std::this_thread::sleep_for(std::chrono::seconds(10));
     // a.value()->connect_async();
-    // std::this_thread::sleep_for(std::chrono::seconds(30));
+    std::this_thread::sleep_for(std::chrono::seconds(30));
     // a.value()->stop();
     return 0;
 }

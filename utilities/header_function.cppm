@@ -1,5 +1,7 @@
+module;
+#include <functional>
+#include <span>
 export module tpc.utilities.header_function;
-import std;
 export namespace tpc::utilities
 {
     template <typename Signature>

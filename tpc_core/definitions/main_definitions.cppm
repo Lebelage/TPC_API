@@ -1,7 +1,4 @@
 export module tpc.core.definitions.main_definitions;
-
-import std;
-
 export namespace tpc::core::definitions {
     //Client
 

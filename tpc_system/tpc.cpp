@@ -1,7 +1,8 @@
+#include "tpc.hpp"
+
 #include <format>
 #include <iostream>
 
-#include "tpc.hpp"
 import tpc.core.definitions.client_definitions;
 
 namespace tpc::system {
@@ -12,7 +13,8 @@ std::expected<std::unique_ptr<TPC>, std::string> TPC::create(std::string_view en
     try {
         return std::unique_ptr<TPC>{new TPC(std::string{endpoint})};
     } catch (const std::exception& error) {
-        return std::unexpected{std::format("[{}]: Failed to create TPC device: {}", core::definitions::CLIENT_ERROR__, error.what())};
+        return std::unexpected{
+            std::format("[{}]: Failed to create TPC device: {}", core::definitions::CLIENT_ERROR__, error.what())};
     } catch (...) {
         return std::unexpected("Failed to create TPC: unknown error");
     };
@@ -55,14 +57,20 @@ auto TPC::get_frame_request() -> std::optional<std::vector<ReceivedItem>> {
     return result.value();
 }
 
-
 #pragma endregion
 
 #pragma region Private methods
 
 auto TPC::initialize_start_handlers() -> void {
-    client_->error_occurred_.subscribe([this](std::string err){on_client_error(err);});
-    client_->info_occurred_.subscribe([this](std::string info){on_client_info(info);});
+    client_->error_occurred_.subscribe([this](std::string err) {
+        on_client_error(err);
+    });
+    client_->info_occurred_.subscribe([this](std::string info) {
+        on_client_info(info);
+    });
+    client_->connection_state_changed_.subscribe([this](client::ConnectionState state) {
+        on_client_connection_state_changed(state);
+    });
 }
 
 #pragma endregion
@@ -75,6 +83,10 @@ auto TPC::on_client_error(std::string err) -> void {
 
 auto TPC::on_client_info(std::string info) -> void {
     std::cout << info << "\n";
+}
+
+auto TPC::on_client_connection_state_changed(client::ConnectionState state) -> void {
+    connection_state_changed_.invoke(state);
 }
 
 #pragma endregion

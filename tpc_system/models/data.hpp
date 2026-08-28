@@ -15,5 +15,7 @@ struct DiscoveryState {
 struct DiscoveryResult {
     std::vector<opcua::NodeId> channels;
     std::vector<std::string> names;
+
+    std::unordered_map<std::string, opcua::NodeId> nodes;
 };
 } // namespace tpc::system::models

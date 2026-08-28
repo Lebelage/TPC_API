@@ -15,7 +15,7 @@ class Subscription {
 public:
     [[nodiscard]] static std::expected<std::unique_ptr<Subscription>, std::string> create();
 
-    ~Subscription() = default;
+    ~Subscription();
 
     Subscription(const Subscription&) = delete;
     Subscription& operator=(const Subscription&) = delete;
@@ -39,6 +39,9 @@ private:
 
     std::optional<opcua::IntegerId> subscription_id_;
     std::vector<opcua::IntegerId> monitored_item_ids_;
+
+    ///PROBLEM ALARM ALARM
+    std::vector<opcua::NodeId> node_ids_;
 
 private:
     void Release(opcua::IntegerId subscription_id) noexcept;

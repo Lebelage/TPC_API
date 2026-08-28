@@ -1,11 +1,11 @@
-#include <memory>
-#include <vector>
+#include "client.hpp"
 
 #include <exec/start_detached.hpp>
+#include <memory>
 #include <open62541pp/client.hpp>
+#include <print>
 #include <stdexec/execution.hpp>
-
-#include "client.hpp"
+#include <vector>
 
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
 import tpc.core.definitions.client_definitions;
@@ -86,7 +86,7 @@ std::expected<bool, std::string> Client::connect_async() {
                     }
 
                     if (client_->isConnected())
-                        client_->disconnectAsync();
+                        client_->disconnect();
                 })
 
                 | stdexec::then([this] {
@@ -98,7 +98,7 @@ std::expected<bool, std::string> Client::connect_async() {
                       try {
                           std::rethrow_exception(error);
                       } catch (const std::exception& ex) {
-                          error_occurred_.emit(ex.what());
+                          error_occurred_.invoke(ex.what());
                       }
                   });
 
@@ -131,14 +131,13 @@ auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
     auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
                 | stdexec::let_value([this](models::DiscoveryResult discovery) {
                       channels_info = std::move(discovery);
-
                       return create_subscription(channels_info);
                   })
                 | stdexec::upon_error([this](std::exception_ptr error) noexcept {
                       try {
                           std::rethrow_exception(error);
                       } catch (const std::exception& ex) {
-                          error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
+                          error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
                       }
                   });
 
@@ -148,32 +147,32 @@ auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
 }
 
 auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
+
     if (!client_)
         return std::unexpected("Client is not initialized");
 
-    client_->onSessionActivated([this] {
-        auto result = initialize_monitored_items();
-
-        if (!result)
-            error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, result.error()));
-    });
-
-    client_->onSessionClosed([this] {
-        info_occurred_.emit(std::format("[{}]: OPC UA session closed", core::definitions::CLIENT_INFO__));
-    });
-
-    client_->onInactive([this] {
-        info_occurred_.emit(std::format("[{}]: OPC UA client became inactive", core::definitions::CLIENT_INFO__));
-    });
+    client_->onConnected([this]{on_opcua_connected();});
+    client_->onSessionActivated([this]{on_opcua_session_activated();});
+    client_->onInactive([this]{on_opcua_inactive();});
+    client_->onDisconnected([this]{on_opcua_disconnected();});
+    client_->onSessionClosed([this]{on_opcua_session_closed();});
 
     return {};
 }
 
+/// Time Costyl baran moment
 auto Client::create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void> {
     if (!subscription_)
         throw std::runtime_error("Subscription is null");
 
-    subscription_->create_subscription(*client_, discovery.channels);
+    std::vector<opcua::NodeId> node_ids;
+    node_ids.reserve(discovery.nodes.size());
+
+    for (const auto& value : discovery.nodes | std::views::values) {
+        node_ids.push_back(value);
+    }
+
+    subscription_->create_subscription(*client_, node_ids);
 
     co_return;
 }
@@ -207,7 +206,6 @@ auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult> {
 
     for (auto& slot_id : slot_ids) {
         auto slot_result = co_await tpc::system::client::helpers::browse_async(*client_, std::move(slot_id));
-
         append_channels(result, slot_result);
     }
     co_return result;
@@ -249,8 +247,10 @@ auto Client::append_channels(tpc::system::models::DiscoveryResult& result, const
             || !reference.nodeId().isLocal()) {
             continue;
         }
-        result.channels.push_back(reference.nodeId().nodeId());
-        result.names.push_back(std::string{reference.browseName().name()});
+        // result.channels.push_back(reference.nodeId().nodeId());
+        // result.names.push_back(std::string{reference.browseName().name()});
+
+        result.nodes.emplace(std::string{reference.browseName().name()}, reference.nodeId().nodeId());
     }
 }
 
@@ -263,15 +263,39 @@ auto Client::on_subscription_data_received(opcua::NodeId node, opcua::DataValue 
 
     double average = std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
 
-    frame_receiver_->add_back(std::string{node.identifier<opcua::String>()}, average);
+    auto name_ind = std::string{opcua::toString(node.identifier<uint32_t>())};
+
+    frame_receiver_->add_back(std::string{opcua::toString(node.identifier<uint32_t>())}, average);
+
+    std::print("{}\n", name_ind);
 }
 
 auto Client::on_subscription_error_occurred(std::string message) -> void {
-    error_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, message));
+    error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, message));
 }
 
 auto Client::on_subscription_info_occurred(std::string message) -> void {
-    info_occurred_.emit(std::format("[{}]: {}", core::definitions::CLIENT_INFO__, message));
+    info_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_INFO__, message));
+}
+
+auto Client::on_opcua_session_activated() -> void {
+    connection_state_changed_.invoke(ConnectionState::Connected);
+}
+
+auto Client::on_opcua_connected() -> void {
+    connection_state_changed_.invoke(ConnectionState::Connected);
+}
+
+auto Client::on_opcua_inactive() -> void {
+    connection_state_changed_.invoke(ConnectionState::Inactive);
+}
+
+auto Client::on_opcua_session_closed() -> void {
+    connection_state_changed_.invoke(ConnectionState::SessionClosed);
+}
+
+auto Client::on_opcua_disconnected() -> void {
+    connection_state_changed_.invoke(ConnectionState::Disconnected);
 }
 
 #pragma endregion

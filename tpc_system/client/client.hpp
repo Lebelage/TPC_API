@@ -12,6 +12,16 @@
 
 namespace tpc::system::client {
 
+enum class ConnectionState {
+    SessionActivated,
+    Connected,
+    Inactive,
+    SessionClosed,
+    Disconnected,
+};
+
+
+
 class Client {
 public:
     [[nodiscard]] static std::expected<std::unique_ptr<Client>, std::string> create(std::string endpoint);
@@ -62,10 +72,17 @@ private:
     auto on_subscription_error_occurred(std::string) -> void;
     auto on_subscription_info_occurred(std::string) -> void;
 
+    auto on_opcua_session_activated() -> void;
+    auto on_opcua_connected() -> void;
+    auto on_opcua_inactive() -> void;
+    auto on_opcua_session_closed() -> void;
+    auto on_opcua_disconnected() -> void;
+
 public:
     utilities::event_handler<std::string> error_occurred_;
     utilities::event_handler<std::string> warning_occurred_;
     utilities::event_handler<std::string> info_occurred_;
+    utilities::event_handler<ConnectionState> connection_state_changed_;
 
 private:
     std::unique_ptr<tpc::system::client::Subscription> subscription_;
@@ -73,6 +90,8 @@ private:
     std::string endpoint_;
 
     std::unique_ptr<FrameReceiver> frame_receiver_;
+
+    ConnectionState connection_state_;
 
     bool session_state_{false};
     bool discovery_started_{false};

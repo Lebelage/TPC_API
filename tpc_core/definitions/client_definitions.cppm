@@ -1,7 +1,6 @@
+module;
+#include <string>
 export module tpc.core.definitions.client_definitions;
-
-import std;
-
 export namespace tpc::core::definitions {
 
 inline constexpr std::string CLIENT_ERROR__ = "Client error";

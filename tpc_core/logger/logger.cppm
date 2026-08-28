@@ -1,5 +1,8 @@
+module;
+#include <iostream>
+#include <string>
+
 export module tpc.core.logger;
-import std;
 export namespace tpc::core
 {
     enum class LogType
