@@ -38,13 +38,16 @@ private:
     Client(std::string endpoint);
 
 public:
+    std::vector<std::string> get_sensors_names() const;
+
+public:
     std::expected<bool, std::string> connect_async();
 
     void stop();
 
     bool is_running() const;
 
-    auto get_frame() -> std::optional<std::vector<ReceivedItem>>;
+    auto get_frame() -> std::optional<std::unordered_map<std::string, double>>;
 
 private:
     [[nodiscard]] auto initialize_opcua_handlers() -> std::expected<void, std::string>;
@@ -78,11 +81,14 @@ private:
     auto on_opcua_session_closed() -> void;
     auto on_opcua_disconnected() -> void;
 
+
+
 public:
     utilities::event_handler<std::string> error_occurred_;
     utilities::event_handler<std::string> warning_occurred_;
     utilities::event_handler<std::string> info_occurred_;
     utilities::event_handler<ConnectionState> connection_state_changed_;
+    utilities::event_handler<models::DiscoveryResult> initialization_data_received_;
 
 private:
     std::unique_ptr<tpc::system::client::Subscription> subscription_;

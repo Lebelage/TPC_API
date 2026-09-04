@@ -12,7 +12,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(TPC_Control LANGUAGES CXX)
 
 add_subdirectory(tpc_system)
-add_subdirectory(tpc_sandbox)
 add_subdirectory(tpc_analytics)
 add_subdirectory(utilities)
 add_subdirectory(tpc_core)

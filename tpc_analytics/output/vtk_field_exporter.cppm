@@ -1,4 +1,5 @@
 module;
+#include <cmath>
 #include <expected>
 #include <filesystem>
 #include <format>

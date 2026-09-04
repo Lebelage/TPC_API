@@ -1,17 +1,13 @@
 #pragma once
 #include <expected>
 #include <memory>
+#include <models/data.hpp>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace tpc::system::client {
-
-struct ReceivedItem {
-    std::string name{};
-    double value{};
-};
 
 class FrameReceiver {
 public:
@@ -26,16 +22,15 @@ public:
     FrameReceiver& operator=(FrameReceiver&&) = delete;
 
 public:
-    std::expected<void, std::string> add_back(std::string name, double value);
+    std::expected<void, std::string> add_back(opcua::NodeId node, double value);
 
-    std::vector<ReceivedItem> get_frame() const;
+    std::expected<std::unordered_map<opcua::NodeId, double>, std::string> get_frame() const;
 
 private:
     explicit FrameReceiver(std::uint16_t received_queue_size);
 
 private:
-    std::unordered_map<std::string, double> ids_;
-    std::vector<ReceivedItem> received_queue_;
+    std::unordered_map<opcua::NodeId, double> received_;
 
     std::uint16_t max_received_queue_size_{36};
 

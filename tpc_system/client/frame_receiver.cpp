@@ -1,4 +1,5 @@
 #include "frame_receiver.hpp"
+
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor
@@ -13,43 +14,32 @@ std::expected<std::unique_ptr<FrameReceiver>, std::string> FrameReceiver::create
 }
 
 FrameReceiver::FrameReceiver(std::uint16_t received_queue_size) {
-    received_queue_.reserve(received_queue_size);
+    received_.reserve(received_queue_size);
 }
 
 #pragma endregion
 
 #pragma region Public methods
 
-std::expected<void, std::string> FrameReceiver::add_back(std::string name, double value) {
+std::expected<void, std::string> FrameReceiver::add_back(opcua::NodeId node, double value) {
     std::lock_guard lock{mutex_};
 
     if (max_received_queue_size_ == 0) {
         return std::unexpected{"Received queue capacity is zero"};
     }
 
-    ReceivedItem item{
-        .name = std::move(name),
-        .value = value,
-    };
-
-    if (received_queue_.size() < max_received_queue_size_) {
-        received_queue_.push_back(std::move(item));
-    } else {
-        std::move(received_queue_.begin() + 1, received_queue_.end(), received_queue_.begin());
-
-        received_queue_.back() = std::move(item);
-    }
+    received_.insert_or_assign(node, value);
 
     return {};
 }
 
-std::vector<ReceivedItem> FrameReceiver::get_frame() const {
+std::expected<std::unordered_map<opcua::NodeId, double>, std::string> FrameReceiver::get_frame() const {
     std::lock_guard lock{mutex_};
 
-    if (received_queue_.empty())
-        return std::vector<ReceivedItem>{};
+    if (received_.empty())
+        return std::unexpected("Frame received queue is empty");
 
-    return received_queue_;
+    return received_;
 }
 
 #pragma endregion

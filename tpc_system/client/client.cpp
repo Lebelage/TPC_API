@@ -7,6 +7,8 @@
 #include <stdexec/execution.hpp>
 #include <vector>
 
+#include "models/data.hpp"
+
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
 import tpc.core.definitions.client_definitions;
 
@@ -114,11 +116,17 @@ void Client::stop() {
     stop_requested_ = true;
 }
 
-auto Client::get_frame() -> std::optional<std::vector<ReceivedItem>> {
-    auto frame = frame_receiver_->get_frame();
+auto Client::get_frame() -> std::optional<std::unordered_map<std::string, double>> {
+    auto frame_result = frame_receiver_->get_frame();
 
-    if (frame.empty())
+    if (!frame_result)
         return std::nullopt;
+
+    std::unordered_map<std::string, double> frame{};
+
+    for (auto key : frame_result.value() | std::views::keys) {
+        frame.insert_or_assign(channels_info.nodes.find(key)->second, frame_result.value().at(key));
+    }
 
     return frame;
 }
@@ -131,6 +139,7 @@ auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
     auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
                 | stdexec::let_value([this](models::DiscoveryResult discovery) {
                       channels_info = std::move(discovery);
+                      initialization_data_received_.invoke(channels_info);
                       return create_subscription(channels_info);
                   })
                 | stdexec::upon_error([this](std::exception_ptr error) noexcept {
@@ -147,15 +156,25 @@ auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
 }
 
 auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
-
     if (!client_)
         return std::unexpected("Client is not initialized");
 
-    client_->onConnected([this]{on_opcua_connected();});
-    client_->onSessionActivated([this]{on_opcua_session_activated();});
-    client_->onInactive([this]{on_opcua_inactive();});
-    client_->onDisconnected([this]{on_opcua_disconnected();});
-    client_->onSessionClosed([this]{on_opcua_session_closed();});
+    client_->onSessionActivated([this] {
+        initialize_monitored_items();
+        on_opcua_session_activated();
+    });
+    client_->onConnected([this] {
+        on_opcua_connected();
+    });
+    client_->onInactive([this] {
+        on_opcua_inactive();
+    });
+    client_->onDisconnected([this] {
+        on_opcua_disconnected();
+    });
+    client_->onSessionClosed([this] {
+        on_opcua_session_closed();
+    });
 
     return {};
 }
@@ -168,7 +187,7 @@ auto Client::create_subscription(models::DiscoveryResult& discovery) -> stdexec:
     std::vector<opcua::NodeId> node_ids;
     node_ids.reserve(discovery.nodes.size());
 
-    for (const auto& value : discovery.nodes | std::views::values) {
+    for (const auto& value : discovery.nodes | std::views::keys) {
         node_ids.push_back(value);
     }
 
@@ -247,10 +266,8 @@ auto Client::append_channels(tpc::system::models::DiscoveryResult& result, const
             || !reference.nodeId().isLocal()) {
             continue;
         }
-        // result.channels.push_back(reference.nodeId().nodeId());
-        // result.names.push_back(std::string{reference.browseName().name()});
 
-        result.nodes.emplace(std::string{reference.browseName().name()}, reference.nodeId().nodeId());
+        result.nodes.emplace(reference.nodeId().nodeId(), std::string{reference.browseName().name()});
     }
 }
 
@@ -263,11 +280,7 @@ auto Client::on_subscription_data_received(opcua::NodeId node, opcua::DataValue 
 
     double average = std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
 
-    auto name_ind = std::string{opcua::toString(node.identifier<uint32_t>())};
-
-    frame_receiver_->add_back(std::string{opcua::toString(node.identifier<uint32_t>())}, average);
-
-    std::print("{}\n", name_ind);
+    frame_receiver_->add_back(node, average);
 }
 
 auto Client::on_subscription_error_occurred(std::string message) -> void {

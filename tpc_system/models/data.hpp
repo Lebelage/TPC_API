@@ -1,21 +1,22 @@
-#include <vector>
+#pragma once
 #include <open62541pp/client.hpp>
+#include <vector>
+
 namespace tpc::system::models {
 
-struct Channel {
-    std::string   name;
-    opcua::NodeId node_id;
-};
-
-struct DiscoveryState {
-    std::size_t          pending_slots{};
-    std::vector<Channel> channels;
-};
-
+/// Main opcua server information model
 struct DiscoveryResult {
-    std::vector<opcua::NodeId> channels;
-    std::vector<std::string> names;
 
-    std::unordered_map<std::string, opcua::NodeId> nodes;
+    ///Dictionary represents
+    ///- [opcua::NodeId] Sensor`s NodeId
+    ///- [std::string] Sensor`s name
+    std::unordered_map<opcua::NodeId, std::string> nodes;
 };
+
+/// Received item data model
+struct ReceivedItem {
+    std::string name{};
+    double value{};
+};
+
 } // namespace tpc::system::models

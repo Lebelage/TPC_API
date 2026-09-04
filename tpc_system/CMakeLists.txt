@@ -38,6 +38,7 @@ target_link_libraries(tpc_system
         open62541pp::open62541pp
         tpc_utilities
         tpc_core
+        tpc_analytics
 )
 
 add_library(TPC::System ALIAS tpc_system)

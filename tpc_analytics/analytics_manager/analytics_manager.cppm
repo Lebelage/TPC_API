@@ -4,6 +4,7 @@ module;
 #include <vector>
 #include <format>
 #include <numbers>
+#include <cmath>
 export module tpc.analytics.analytics_manager;
 
 import tpc.utilities.header_function;
@@ -20,7 +21,7 @@ export namespace tpc::analytics
     using namespace tpc::analytics::models;
     using namespace tpc::core::definitions;
 
-    // template <typename... Args>
+
     class AnalyticsManager final
     {
         using TargetFunction = utilities::header_function<double(std::size_t, double, double, double)>;
@@ -114,31 +115,6 @@ export namespace tpc::analytics
             field_data_->insert_field_range(field_buffer);
 
             return {};
-        }
-
-        std::vector<models::Measurement> GenerateTPCSensorMeasurements()
-        {
-            constexpr double R_SENSOR     = 2.0;
-            constexpr double Z_ENDS[]     = {-3.5, 3.5};
-            constexpr double BZ_MAIN      = 5000.0;
-            constexpr double B_TRANSVERSE = 0.5;
-
-            std::vector<models::Measurement> measurements;
-            measurements.reserve(12);
-
-            for (double z : Z_ENDS)
-            {
-                for (int i = 0; i < 6; ++i)
-                {
-                    const double phi        = i * (std::numbers::pi / 3.0);
-                    const double current_Br = z < 0.0 ? -B_TRANSVERSE : B_TRANSVERSE;
-
-                    measurements.emplace_back(models::PointComponents{{R_SENSOR, phi, z}, models::CoordinateType::Cylindric},
-                                              models::FieldComponents{{current_Br, 0.0, BZ_MAIN}, models::CoordinateType::Cylindric});
-                }
-            }
-
-            return measurements;
         }
 
         std::expected<void, std::string> export_to_vtk()
