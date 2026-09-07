@@ -1,16 +1,17 @@
-#pragma once
+module;
 #include <expected>
-
 #include <open62541pp/client.hpp>
 #include <stdexec/__detail/__task.hpp>
+
 #include "exec/static_thread_pool.hpp"
 
-#include "event_handler.hpp"
-#include "frame_receiver.hpp"
-#include "subscription.hpp"
-#include "models/data.hpp"
+export module tpc.system.client;
+import tpc.system.client.frame_receiver;
+import tpc.system.client.subscription;
+import tpc.system.models.system_data;
 
-namespace tpc::system::client {
+import event_handler;
+export namespace tpc::system::client {
 
 enum class ConnectionState {
     SessionActivated,
@@ -19,8 +20,6 @@ enum class ConnectionState {
     SessionClosed,
     Disconnected,
 };
-
-
 
 class Client {
 public:
@@ -91,7 +90,7 @@ public:
     utilities::event_handler<models::DiscoveryResult> initialization_data_received_;
 
 private:
-    std::unique_ptr<tpc::system::client::Subscription> subscription_;
+    std::unique_ptr<client::Subscription> subscription_;
     std::unique_ptr<opcua::Client> client_;
     std::string endpoint_;
 

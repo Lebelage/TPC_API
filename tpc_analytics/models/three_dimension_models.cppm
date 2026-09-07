@@ -1,10 +1,11 @@
 module;
-#include <expected>
-#include <span>
-#include <vector>
-#include <cmath>
-#include <ranges>
 #include <algorithm>
+#include <cmath>
+#include <expected>
+#include <ranges>
+#include <span>
+#include <string>
+#include <vector>
 
 export module tpc.analytics.models.three_dimension_model;
 

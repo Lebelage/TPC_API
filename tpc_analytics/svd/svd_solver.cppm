@@ -2,6 +2,7 @@ module;
 #include <expected>
 #include <functional>
 #include <span>
+#include <string>
 export module tpc.analytics.svd_solver;
 import tpc.analytics.models.three_dimension_model;
 import tpc.third_party.eigen;

@@ -1,16 +1,18 @@
-#include "client.hpp"
+module;
+#include <memory>
+#include <print>
+#include <vector>
+#include <expected>
 
 #include <exec/start_detached.hpp>
-#include <memory>
-#include <open62541pp/client.hpp>
-#include <print>
 #include <stdexec/execution.hpp>
-#include <vector>
 
-#include "models/data.hpp"
+#include <open62541pp/client.hpp>
+module tpc.system.client;
 
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
 import tpc.core.definitions.client_definitions;
+import tpc.system.models.system_data;
 
 namespace tpc::system::client {
 

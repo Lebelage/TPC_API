@@ -1,8 +1,13 @@
-#include "tpc.hpp"
-
+module;
 #include <format>
 #include <iostream>
+#include <optional>
 #include <utility>
+#include <expected>
+#include <unordered_map>
+#include <span>
+
+module tpc.system.tpc;
 
 import tpc.core.definitions.client_definitions;
 import tpc.analytics.analytics_manager;

@@ -1,11 +1,14 @@
-#include "open62541pp/services/subscription.hpp"
-
+module;
 #include <format>
 #include <iostream>
-#include <open62541pp/client.hpp>
+#include <expected>
+#include <span>
 
+#include <open62541pp/client.hpp>
+#include "open62541pp/services/subscription.hpp"
 #include "open62541pp/services/monitoreditem.hpp"
-#include "subscription.hpp"
+
+module tpc.system.client.subscription;
 
 namespace tpc::system::client {
 

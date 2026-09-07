@@ -1,10 +1,11 @@
 module;
 #include <expected>
-#include <string>
-#include <vector>
 #include <format>
 #include <numbers>
-#include <cmath>
+#include <optional>
+#include <span>
+#include <string>
+#include <vector>
 export module tpc.analytics.analytics_manager;
 
 import tpc.utilities.header_function;
@@ -20,7 +21,6 @@ export namespace tpc::analytics
     using namespace tpc::third_party;
     using namespace tpc::analytics::models;
     using namespace tpc::core::definitions;
-
 
     class AnalyticsManager final
     {
@@ -191,7 +191,8 @@ export namespace tpc::analytics
         }
 
         /// Need to rework
-        std::expected<void, std::string> calculate_field_kernel(std::span<const double> coordinates_buffer, std::span<double> field_buffer)
+        std::expected<void, std::string> calculate_field_kernel(
+            std::span<const double> coordinates_buffer, std::span<double> field_buffer)
         {
             if (coordinates_buffer.size() % __DIMENSION != 0)
                 return std::unexpected("Coordinate buffer has an invalid size");

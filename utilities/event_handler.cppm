@@ -1,11 +1,10 @@
-#pragma once
-
+module;
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
 #include <utility>
-
-namespace tpc::utilities {
+export module event_handler;
+export namespace tpc::utilities {
 
 template <class... Args> class event_handler {
 public:

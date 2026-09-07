@@ -1,6 +1,8 @@
 module;
 #include <expected>
+#include <span>
 #include <string>
+#include <vector>
 
 export module tpc.analytics.svd.basis;
 import tpc.utilities.header_function;

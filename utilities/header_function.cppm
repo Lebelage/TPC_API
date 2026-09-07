@@ -1,6 +1,7 @@
 module;
 #include <functional>
 #include <span>
+#include <stdexcept>
 export module tpc.utilities.header_function;
 export namespace tpc::utilities
 {
