@@ -3,6 +3,7 @@ module;
 #include <print>
 #include <vector>
 #include <expected>
+#include <numeric>
 
 #include <exec/start_detached.hpp>
 #include <stdexec/execution.hpp>

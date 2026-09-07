@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <string>
 #include <vector>
+#include <cmath>
 export module tpc.analytics.analytics_manager;
 
 import tpc.utilities.header_function;
