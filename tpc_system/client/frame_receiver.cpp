@@ -1,5 +1,10 @@
-#include "frame_receiver.hpp"
-
+module;
+#include <exception>
+#include <mutex>
+#include <unordered_map>
+#include <expected>
+#include <open62541pp/types.hpp>
+module tpc.system.client.frame_receiver;
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor

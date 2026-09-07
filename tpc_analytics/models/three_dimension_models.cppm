@@ -6,7 +6,7 @@ module;
 #include <ranges>
 #include <algorithm>
 
-export module tpc.analytics.models.three_dimension_model;
+export module tpc.analytics.models.three_dimension_models;
 
 import tpc.utilities.chunkview;
 

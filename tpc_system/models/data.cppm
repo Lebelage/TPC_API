@@ -1,8 +1,9 @@
-#pragma once
+module;
 #include <open62541pp/client.hpp>
 #include <vector>
 
-namespace tpc::system::models {
+export module tpc.system.models.data;
+export namespace tpc::system::models {
 
 /// Main opcua server information model
 struct DiscoveryResult {

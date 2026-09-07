@@ -1,4 +1,4 @@
-#include "client.hpp"
+module;
 
 #include <exec/start_detached.hpp>
 #include <memory>
@@ -7,10 +7,11 @@
 #include <stdexec/execution.hpp>
 #include <vector>
 
-#include "models/data.hpp"
-
+module tpc.system.client.client;
 import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
 import tpc.core.definitions.client_definitions;
+
+import tpc.system.models.data;
 
 namespace tpc::system::client {
 

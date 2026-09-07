@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <expected>
 #include <memory>
@@ -8,11 +8,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "client/client.hpp"
-#include "client/frame_receiver.hpp"
-#include "event_handler.hpp"
+export module tpc.system.tpc;
+import tpc.utilities.event_handler;
+import tpc.system.client.frame_receiver;
+import tpc.system.client.client;
 
-namespace tpc::system {
+import tpc.system.models.data;
+export namespace tpc::system {
 
 using ReceivedItem = models::ReceivedItem;
 

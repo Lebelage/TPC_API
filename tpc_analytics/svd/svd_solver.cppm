@@ -3,7 +3,7 @@ module;
 #include <functional>
 #include <span>
 export module tpc.analytics.svd_solver;
-import tpc.analytics.models.three_dimension_model;
+import tpc.analytics.models.three_dimension_models;
 import tpc.third_party.eigen;
 import tpc.utilities.header_function;
 import tpc.analytics.concepts.measurement_concept;

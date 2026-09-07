@@ -4,7 +4,7 @@ module;
 
 export module tpc.analytics.svd.basis;
 import tpc.utilities.header_function;
-import tpc.analytics.models.three_dimension_model;
+import tpc.analytics.models.three_dimension_models;
 
 export namespace tpc::analytics
 {

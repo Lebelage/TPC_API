@@ -1,13 +1,14 @@
-#pragma once
+module;
 #include <expected>
 #include <memory>
-#include <models/data.hpp>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-namespace tpc::system::client {
+export module tpc.system.client.frame_receiver;
+import tpc.system.models.data;
+export namespace tpc::system::client {
 
 class FrameReceiver {
 public:

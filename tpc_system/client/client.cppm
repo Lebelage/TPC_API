@@ -1,16 +1,18 @@
-#pragma once
+module;
 #include <expected>
-
 #include <open62541pp/client.hpp>
 #include <stdexec/__detail/__task.hpp>
+
 #include "exec/static_thread_pool.hpp"
 
-#include "event_handler.hpp"
-#include "frame_receiver.hpp"
-#include "subscription.hpp"
-#include "models/data.hpp"
+export module tpc.system.client.client;
 
-namespace tpc::system::client {
+import tpc.utilities.event_handler;
+
+import tpc.system.client.frame_receiver;
+import tpc.system.client.subscription;
+import tpc.system.models.data;
+export namespace tpc::system::client {
 
 enum class ConnectionState {
     SessionActivated,

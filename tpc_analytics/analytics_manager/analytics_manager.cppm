@@ -7,12 +7,12 @@ module;
 #include <cmath>
 export module tpc.analytics.analytics_manager;
 
-import tpc.utilities.header_function;
 import tpc.third_party.eigen;
-import tpc.analytics.models.three_dimension_model;
+import tpc.analytics.models.three_dimension_models;
 import tpc.analytics.svd.basis;
 import tpc.analytics.svd_solver;
 import tpc.core.definitions.analytics_definitions;
+import tpc.utilities.header_function;
 
 import tpc.analytics.output.vtk_field_exporter;
 export namespace tpc::analytics

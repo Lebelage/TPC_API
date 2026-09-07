@@ -1,13 +1,14 @@
-#include "tpc.hpp"
-
+module;
 #include <format>
 #include <iostream>
 #include <utility>
 
+module tpc.system.tpc;
+
 import tpc.core.definitions.client_definitions;
 import tpc.analytics.analytics_manager;
 import tpc.analytics.models.basis_models;
-import tpc.analytics.models.three_dimension_model;
+import tpc.analytics.models.three_dimension_models;
 
 namespace tpc::system {
 
