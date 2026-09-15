@@ -1,9 +1,9 @@
-module;
+#pragma once
+
 #include <iostream>
 #include <string>
 
-export module tpc.core.logger;
-export namespace tpc::core
+namespace tpc::core
 {
     enum class LogType
     {

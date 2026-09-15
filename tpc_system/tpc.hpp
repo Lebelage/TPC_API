@@ -1,4 +1,5 @@
-module;
+#pragma once
+
 #include <expected>
 #include <memory>
 #include <optional>
@@ -7,13 +8,10 @@ module;
 #include <unordered_map>
 #include <span>
 #include <vector>
-
-export module tpc.system.tpc;
-import event_handler;
-
-import tpc.system.models.system_data;
-import tpc.system.client;
-export namespace tpc::system {
+#include "utilities/event_handler.hpp"
+#include "tpc_system/models/data.hpp"
+#include "tpc_system/client/client.hpp"
+namespace tpc::system {
 
 using ReceivedItem = models::ReceivedItem;
 
@@ -78,7 +76,7 @@ public:
      */
     [[nodiscard]] auto get_frame_request() -> std::optional<std::unordered_map<std::string, double>>;
 
-    [[nodiscard]] auto calculate_field_3d(std::span<double> sensors_values, std::span<double> sensors_pos) -> void;
+    auto calculate_field_3d(std::span<double> sensors_values, std::span<double> sensors_pos) -> void;
 
 private:
     auto on_client_error(const std::string& err) -> void;

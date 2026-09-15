@@ -1,17 +1,22 @@
-module;
+#pragma once
+
 #include <expected>
+#include <format>
 #include <open62541pp/client.hpp>
 #include <stdexec/__detail/__task.hpp>
+#include <stdexec/execution.hpp>
+#include <thread>
+#include <vector>
 
+#include <exec/start_detached.hpp>
 #include "exec/static_thread_pool.hpp"
-
-export module tpc.system.client;
-import tpc.system.client.frame_receiver;
-import tpc.system.client.subscription;
-import tpc.system.models.system_data;
-
-import event_handler;
-export namespace tpc::system::client {
+#include "tpc_core/definitions/client_definitions.hpp"
+#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
+#include "tpc_system/client/frame_receiver.hpp"
+#include "tpc_system/client/subscription.hpp"
+#include "tpc_system/models/data.hpp"
+#include "utilities/event_handler.hpp"
+namespace tpc::system::client {
 
 enum class ConnectionState {
     SessionActivated,
@@ -111,7 +116,7 @@ private:
     std::atomic_bool running_{false};
     std::atomic_bool stop_requested_{false};
 
-    exec::static_thread_pool opcua_pool_;
+    std::jthread opcua_thread_;
     exec::static_thread_pool processing_pool_;
 
     models::DiscoveryResult channels_info;
@@ -119,4 +124,71 @@ private:
 private:
     const uint16_t polling_interval_ms_{50};
 };
+} // namespace tpc::system::client
+
+namespace tpc::system::client {
+
+inline auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
+    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
+                | stdexec::let_value([this](models::DiscoveryResult discovery) {
+                      channels_info = std::move(discovery);
+                      initialization_data_received_.invoke(channels_info);
+                      return create_subscription(channels_info);
+                  })
+                | stdexec::upon_error([this](std::exception_ptr error) noexcept {
+                      try {
+                          std::rethrow_exception(error);
+                      } catch (const std::exception& ex) {
+                          error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
+                      }
+                  });
+
+    exec::start_detached(std::move(task));
+    return {};
+}
+
+inline auto Client::create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void> {
+    if (!subscription_)
+        throw std::runtime_error("Subscription is null");
+
+    std::vector<opcua::NodeId> node_ids;
+    node_ids.reserve(discovery.nodes.size());
+
+    for (const auto& value : discovery.nodes | std::views::keys) {
+        node_ids.push_back(value);
+    }
+
+    subscription_->create_subscription(*client_, node_ids);
+    co_return;
+}
+
+inline auto Client::start_discovery() -> std::expected<void, std::string> {
+    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders());
+    exec::start_detached(std::move(task));
+    return {};
+}
+
+inline auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult> {
+    models::DiscoveryResult result;
+
+    auto root =
+        co_await tpc::system::client::helpers::browse_async(*client_, opcua::NodeId{opcua::ObjectId::ObjectsFolder});
+
+    auto target_channel_id = find_child(root, "ADC Channels", opcua::NodeClass::Object);
+    if (!target_channel_id)
+        throw std::runtime_error{"Cannot find target channel ID"};
+
+    auto slots_result = co_await tpc::system::client::helpers::browse_async(*client_, std::move(*target_channel_id));
+    auto slot_ids = find_slot_ids(slots_result);
+
+    if (slot_ids.empty())
+        throw std::runtime_error{"No slots found"};
+
+    for (auto& slot_id : slot_ids) {
+        auto slot_result = co_await tpc::system::client::helpers::browse_async(*client_, std::move(slot_id));
+        append_channels(result, slot_result);
+    }
+
+    co_return result;
+}
 } // namespace tpc::system::client

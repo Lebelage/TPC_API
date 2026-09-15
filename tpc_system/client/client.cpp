@@ -1,4 +1,3 @@
-module;
 #include <memory>
 #include <print>
 #include <vector>
@@ -9,12 +8,10 @@ module;
 #include <stdexec/execution.hpp>
 
 #include <open62541pp/client.hpp>
-module tpc.system.client;
-
-import tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
-import tpc.core.definitions.client_definitions;
-import tpc.system.models.system_data;
-
+#include "tpc_system/client/client.hpp"
+#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
+#include "tpc_core/definitions/client_definitions.hpp"
+#include "tpc_system/models/data.hpp"
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor
@@ -32,7 +29,7 @@ namespace tpc::system::client {
 };
 
 Client::Client(std::string endpoint)
-    : client_{std::make_unique<opcua::Client>()}, opcua_pool_(1), processing_pool_(2), endpoint_(endpoint) {
+    : client_{std::make_unique<opcua::Client>()}, processing_pool_(2), endpoint_(endpoint) {
     auto subscription_result = Subscription::create();
 
     if (!subscription_result)
@@ -77,37 +74,30 @@ std::expected<bool, std::string> Client::connect_async() {
     if (!result)
         return false;
 
-    auto task = stdexec::schedule(opcua_pool_.get_scheduler()) | stdexec::then([this] {
-                    if (!client_)
-                        throw std::runtime_error{"OPC UA client is not initialized"};
+    opcua_thread_ = std::jthread([this](std::stop_token stop_token) noexcept {
+        try {
+            if (!client_)
+                throw std::runtime_error{"OPC UA client is not initialized"};
 
-                    if (endpoint_.empty())
-                        throw std::runtime_error{"OPC UA endpoint is empty"};
+            if (endpoint_.empty())
+                throw std::runtime_error{"OPC UA endpoint is empty"};
 
-                    client_->connectAsync(endpoint_);
+            client_->connectAsync(endpoint_);
 
-                    while (!stop_requested_.load()) {
-                        client_->runIterate(polling_interval_ms_);
-                    }
+            while (!stop_token.stop_requested() && !stop_requested_.load()) {
+                client_->runIterate(polling_interval_ms_);
+            }
 
-                    if (client_->isConnected())
-                        client_->disconnect();
-                })
+            if (client_->isConnected())
+                client_->disconnect();
+        } catch (const std::exception& ex) {
+            error_occurred_.invoke(ex.what());
+        } catch (...) {
+            error_occurred_.invoke("Unknown error in the OPC UA worker");
+        }
 
-                | stdexec::then([this] {
-                      running_ = false;
-                  })
-                | stdexec::upon_error([this](std::exception_ptr error) noexcept {
-                      running_ = false;
-
-                      try {
-                          std::rethrow_exception(error);
-                      } catch (const std::exception& ex) {
-                          error_occurred_.invoke(ex.what());
-                      }
-                  });
-
-    exec::start_detached(std::move(task));
+        running_ = false;
+    });
     return true;
 }
 
@@ -117,6 +107,7 @@ bool Client::is_running() const {
 
 void Client::stop() {
     stop_requested_ = true;
+    opcua_thread_.request_stop();
 }
 
 auto Client::get_frame() -> std::optional<std::unordered_map<std::string, double>> {
@@ -137,26 +128,6 @@ auto Client::get_frame() -> std::optional<std::unordered_map<std::string, double
 #pragma endregion
 
 #pragma region Private methods
-
-auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
-    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
-                | stdexec::let_value([this](models::DiscoveryResult discovery) {
-                      channels_info = std::move(discovery);
-                      initialization_data_received_.invoke(channels_info);
-                      return create_subscription(channels_info);
-                  })
-                | stdexec::upon_error([this](std::exception_ptr error) noexcept {
-                      try {
-                          std::rethrow_exception(error);
-                      } catch (const std::exception& ex) {
-                          error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
-                      }
-                  });
-
-    exec::start_detached(std::move(task));
-
-    return {};
-}
 
 auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
     if (!client_)
@@ -180,57 +151,6 @@ auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
     });
 
     return {};
-}
-
-/// Time Costyl baran moment
-auto Client::create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void> {
-    if (!subscription_)
-        throw std::runtime_error("Subscription is null");
-
-    std::vector<opcua::NodeId> node_ids;
-    node_ids.reserve(discovery.nodes.size());
-
-    for (const auto& value : discovery.nodes | std::views::keys) {
-        node_ids.push_back(value);
-    }
-
-    subscription_->create_subscription(*client_, node_ids);
-
-    co_return;
-}
-
-auto Client::start_discovery() -> std::expected<void, std::string> {
-    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders());
-
-    exec::start_detached(std::move(task));
-
-    return {};
-}
-
-auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult> {
-    models::DiscoveryResult result;
-
-    auto root =
-        co_await tpc::system::client::helpers::browse_async(*client_, opcua::NodeId{opcua::ObjectId::ObjectsFolder});
-
-    auto target_channel_id = find_child(root, "ADC Channels", opcua::NodeClass::Object);
-
-    if (!target_channel_id) {
-        throw std::runtime_error{"Cannot find target channel ID"};
-    }
-
-    auto slots_result = co_await tpc::system::client::helpers::browse_async(*client_, std::move(*target_channel_id));
-
-    auto slot_ids = find_slot_ids(slots_result);
-
-    if (slot_ids.empty())
-        throw std::runtime_error{"No slots found"};
-
-    for (auto& slot_id : slot_ids) {
-        auto slot_result = co_await tpc::system::client::helpers::browse_async(*client_, std::move(slot_id));
-        append_channels(result, slot_result);
-    }
-    co_return result;
 }
 
 #pragma region Helpers

@@ -1,4 +1,3 @@
-module;
 #include <expected>
 #include <memory>
 #include <mutex>
@@ -7,7 +6,7 @@ module;
 #include <vector>
 
 #include "open62541pp/types.hpp"
-module tpc.system.client.frame_receiver;
+#include "tpc_system/client/frame_receiver.hpp"
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor

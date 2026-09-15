@@ -1,4 +1,5 @@
-module;
+#pragma once
+
 #include <algorithm>
 #include <cmath>
 #include <expected>
@@ -6,12 +7,8 @@ module;
 #include <span>
 #include <string>
 #include <vector>
-
-export module tpc.analytics.models.three_dimension_model;
-
-import tpc.utilities.chunkview;
-
-export namespace tpc::analytics::models
+#include "utilities/chunkview.hpp"
+namespace tpc::analytics::models
 {
     /// Represents the coordinate system type.
     enum class CoordinateType

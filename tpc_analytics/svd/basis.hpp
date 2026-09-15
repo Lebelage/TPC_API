@@ -1,14 +1,12 @@
-module;
+#pragma once
+
 #include <expected>
 #include <span>
 #include <string>
 #include <vector>
-
-export module tpc.analytics.svd.basis;
-import tpc.utilities.header_function;
-import tpc.analytics.models.three_dimension_model;
-
-export namespace tpc::analytics
+#include "utilities/header_function.hpp"
+#include "tpc_analytics/models/three_dimension_models.hpp"
+namespace tpc::analytics
 {
     class BasisCollection
     {

@@ -1,4 +1,3 @@
-module;
 #include <format>
 #include <iostream>
 #include <optional>
@@ -7,13 +6,11 @@ module;
 #include <unordered_map>
 #include <span>
 
-module tpc.system.tpc;
-
-import tpc.core.definitions.client_definitions;
-import tpc.analytics.analytics_manager;
-import tpc.analytics.models.basis_models;
-import tpc.analytics.models.three_dimension_model;
-
+#include "tpc_system/tpc.hpp"
+#include "tpc_core/definitions/client_definitions.hpp"
+#include "tpc_analytics/analytics_manager/analytics_manager.hpp"
+#include "tpc_analytics/models/basis_models.hpp"
+#include "tpc_analytics/models/three_dimension_models.hpp"
 namespace tpc::system {
 
 struct AnalyticsImpl {

@@ -1,9 +1,9 @@
-module;
+#pragma once
+
 #include <functional>
 #include <span>
 #include <stdexcept>
-export module tpc.utilities.header_function;
-export namespace tpc::utilities
+namespace tpc::utilities
 {
     template <typename Signature>
     class header_function;

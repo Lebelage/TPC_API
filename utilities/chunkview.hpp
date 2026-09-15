@@ -1,11 +1,10 @@
-module;
+#pragma once
+
 #include <algorithm>
 #include <span>
 #include <stdexcept>
 
-export module tpc.utilities.chunkview;
-
-export namespace tpc::utilities {
+namespace tpc::utilities {
     template<typename T>
     class ChunkView {
     public:

@@ -1,12 +1,11 @@
-module;
-#include <cmath>
-export module tpc.analytics.models.basis_models;
+#pragma once
 
-export namespace tpc::analytics::models {
+#include <cmath>
+namespace tpc::analytics::models {
 
 constexpr int DEFAULT_MODES_COUNT_ = 10;
 
-double DefaultBasisR(int k, double r, double phi, double z)
+inline double DefaultBasisR(int k, double r, double phi, double z)
 {
     switch (k)
     {
@@ -35,7 +34,7 @@ double DefaultBasisR(int k, double r, double phi, double z)
     }
 }
 
-double DefaultBasisPhi(int k, double r, double phi, double z)
+inline double DefaultBasisPhi(int k, double r, double phi, double z)
 {
     switch (k)
     {
@@ -64,7 +63,7 @@ double DefaultBasisPhi(int k, double r, double phi, double z)
     }
 }
 
-double DefaultBasisZ(int k, double r, double phi, double z)
+inline double DefaultBasisZ(int k, double r, double phi, double z)
 {
     switch (k)
     {

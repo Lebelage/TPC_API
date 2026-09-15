@@ -1,13 +1,13 @@
-module;
+#pragma once
+
 #include <expected>
 #include <span>
 
 #include "open62541pp/services/detail/client_service.hpp"
 #include "open62541pp/services/monitoreditem.hpp"
 #include "open62541pp/services/subscription.hpp"
-export module tpc.system.client.subscription;
-import event_handler;
-export namespace tpc::system::client {
+#include "utilities/event_handler.hpp"
+namespace tpc::system::client {
 
 struct DefaultSubscriptionConfig;
 

@@ -1,25 +1,14 @@
-file(GLOB_RECURSE MODULE_SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/*.cppm"
+file(GLOB_RECURSE HEADER_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
 )
 
-file(GLOB_RECURSE REGULAR_SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
-)
-
-add_library(tpc_utilities)
+add_library(tpc_utilities INTERFACE)
 
 target_sources(tpc_utilities
-        PUBLIC
-        FILE_SET CXX_MODULES
-        FILES ${MODULE_SOURCES}
-
-        PUBLIC
+        INTERFACE
         FILE_SET HEADERS
-        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+        BASE_DIRS ${PROJECT_SOURCE_DIR}
         FILES ${HEADER_SOURCES}
-
-        PRIVATE
-        ${REGULAR_SOURCES}
 )
 
 add_library(TPC::Utilities ALIAS tpc_utilities)

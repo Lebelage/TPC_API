@@ -1,13 +1,11 @@
-module;
+#pragma once
 
 #include <cstddef>
 #include <open62541pp/client.hpp>
 #include <string>
 #include <unordered_map>
 
-export module tpc.system.models.system_data;
-
-export namespace tpc::system::models {
+namespace tpc::system::models {
 
 struct NodeIdHash {
     std::size_t operator()(const opcua::NodeId& node_id) const noexcept {

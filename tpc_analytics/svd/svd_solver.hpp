@@ -1,14 +1,14 @@
-module;
+#pragma once
+
 #include <expected>
 #include <functional>
 #include <span>
 #include <string>
-export module tpc.analytics.svd_solver;
-import tpc.analytics.models.three_dimension_model;
-import tpc.third_party.eigen;
-import tpc.utilities.header_function;
-import tpc.analytics.concepts.measurement_concept;
-export namespace tpc::analytics
+#include "tpc_analytics/models/three_dimension_models.hpp"
+#include "third_party/eigen_module.hpp"
+#include "utilities/header_function.hpp"
+#include "tpc_analytics/concepts/measurement_concept.hpp"
+namespace tpc::analytics
 {
     using namespace tpc::third_party;
 

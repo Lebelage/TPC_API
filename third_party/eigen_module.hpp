@@ -1,7 +1,7 @@
-module;
+#pragma once
+
 #include <Eigen/Dense>
-export module tpc.third_party.eigen;
-export namespace tpc::third_party::eigen {
+namespace tpc::third_party::eigen {
     using Eigen::MatrixXd;
     using Eigen::VectorXd;
     using Eigen::JacobiSVD;

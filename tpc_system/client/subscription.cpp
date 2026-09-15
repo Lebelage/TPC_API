@@ -1,4 +1,3 @@
-module;
 #include <format>
 #include <iostream>
 #include <expected>
@@ -8,8 +7,7 @@ module;
 #include "open62541pp/services/subscription.hpp"
 #include "open62541pp/services/monitoreditem.hpp"
 
-module tpc.system.client.subscription;
-
+#include "tpc_system/client/subscription.hpp"
 namespace tpc::system::client {
 
 struct DefaultSubscriptionConfig {

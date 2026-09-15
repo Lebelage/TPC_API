@@ -1,12 +1,14 @@
 find_package(Eigen3 CONFIG REQUIRED)
 
-file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "*.cppm")
+file(GLOB_RECURSE HEADER_SOURCES CONFIGURE_DEPENDS "*.hpp")
 
-add_library(third_party STATIC)
+add_library(third_party INTERFACE)
 
 target_sources(third_party
-        PUBLIC
-        FILE_SET CXX_MODULES FILES ${APP_SOURCES}
+        INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS ${PROJECT_SOURCE_DIR}
+        FILES ${HEADER_SOURCES}
 )
 
-target_link_libraries(third_party PUBLIC Eigen3::Eigen)
+target_link_libraries(third_party INTERFACE Eigen3::Eigen)

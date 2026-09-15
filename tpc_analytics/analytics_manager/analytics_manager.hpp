@@ -1,4 +1,5 @@
-module;
+#pragma once
+
 #include <expected>
 #include <format>
 #include <numbers>
@@ -7,17 +8,14 @@ module;
 #include <string>
 #include <vector>
 #include <cmath>
-export module tpc.analytics.analytics_manager;
-
-import tpc.utilities.header_function;
-import tpc.third_party.eigen;
-import tpc.analytics.models.three_dimension_model;
-import tpc.analytics.svd.basis;
-import tpc.analytics.svd_solver;
-import tpc.core.definitions.analytics_definitions;
-
-import tpc.analytics.output.vtk_field_exporter;
-export namespace tpc::analytics
+#include "utilities/header_function.hpp"
+#include "third_party/eigen_module.hpp"
+#include "tpc_analytics/models/three_dimension_models.hpp"
+#include "tpc_analytics/svd/basis.hpp"
+#include "tpc_analytics/svd/svd_solver.hpp"
+#include "tpc_core/definitions/analytics_definitions.hpp"
+#include "tpc_analytics/output/vtk_field_exporter.hpp"
+namespace tpc::analytics
 {
     using namespace tpc::third_party;
     using namespace tpc::analytics::models;

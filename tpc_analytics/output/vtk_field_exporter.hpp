@@ -1,4 +1,5 @@
-module;
+#pragma once
+
 #include <cmath>
 #include <expected>
 #include <filesystem>
@@ -7,9 +8,7 @@ module;
 #include <string>
 #include <system_error>
 #include <fstream>
-export module tpc.analytics.output.vtk_field_exporter;
-
-export namespace tpc::analytics::output
+namespace tpc::analytics::output
 {
     class VtkFieldExporter
     {

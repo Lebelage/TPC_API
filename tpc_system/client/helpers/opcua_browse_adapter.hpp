@@ -1,12 +1,12 @@
-module;
+#pragma once
+
 #include <open62541pp/client.hpp>
 #include <stdexec/__detail/__operation_states.hpp>
 #include <stdexec/__detail/__receivers.hpp>
 #include <stdexec/execution.hpp>
 
 #include "open62541pp/services/view.hpp"
-export module tpc.system.client.helpers.async_adapters.opcua_browse_adapter;
-export namespace tpc::system::client::helpers {
+namespace tpc::system::client::helpers {
 template <stdexec::receiver Receiver> struct browse_operation {
     using operation_state = stdexec::operation_state_tag;
 
@@ -41,7 +41,7 @@ struct browse_sender {
     }
 };
 
-[[nodiscard]] auto browse_async(opcua::Client& client, opcua::NodeId node_id) {
+[[nodiscard]] inline auto browse_async(opcua::Client& client, opcua::NodeId node_id) {
     return browse_sender{&client, std::move(node_id)};
 }
 } // namespace tpc::system::client::helpers
