@@ -6,11 +6,12 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <span>
 #include <vector>
-#include "utilities/event_handler.hpp"
-#include "tpc_system/models/data.hpp"
+
+#include "tpc_analytics/models/three_dimension_models.hpp"
 #include "tpc_system/client/client.hpp"
+#include "tpc_system/models/data.hpp"
+#include "utilities/event_handler.hpp"
 namespace tpc::system {
 
 using ReceivedItem = models::ReceivedItem;
@@ -76,7 +77,11 @@ public:
      */
     [[nodiscard]] auto get_frame_request() -> std::optional<std::unordered_map<std::string, double>>;
 
-    auto calculate_field_3d(std::span<double> sensors_values, std::span<double> sensors_pos) -> void;
+    auto calculate_field_3d(std::vector<tpc::analytics::models::Measurement> measurements) -> void;
+
+private:
+    double volts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept;
+    double millivolts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept;
 
 private:
     auto on_client_error(const std::string& err) -> void;

@@ -1,16 +1,18 @@
+#include "tpc_system/tpc.hpp"
+
+#include <expected>
 #include <format>
 #include <iostream>
 #include <optional>
-#include <utility>
-#include <expected>
-#include <unordered_map>
 #include <span>
+#include <unordered_map>
+#include <utility>
 
-#include "tpc_system/tpc.hpp"
-#include "tpc_core/definitions/client_definitions.hpp"
 #include "tpc_analytics/analytics_manager/analytics_manager.hpp"
 #include "tpc_analytics/models/basis_models.hpp"
 #include "tpc_analytics/models/three_dimension_models.hpp"
+#include "tpc_core/definitions/client_definitions.hpp"
+#include "tpc_system/models/data.hpp"
 namespace tpc::system {
 
 struct AnalyticsImpl {
@@ -87,37 +89,41 @@ auto TPC::get_frame_request() -> std::optional<std::unordered_map<std::string, d
         return std::nullopt;
     }
 
+    for(auto& frame : result.value()){
+        auto callibrtion = models::HallCalibrationCollection::find(frame.first);
+
+        if(!callibrtion)
+            continue;
+            // return std::nullopt;
+
+        frame.second = millivolts_to_gauss(frame.second, *callibrtion);
+    }
+
     return std::move(result.value());
 }
 
-auto TPC::calculate_field_3d(std::span<double> sensors_values, std::span<double> sensors_pos) -> void {
-    if (sensors_values.empty() || sensors_pos.empty())
+auto TPC::calculate_field_3d(std::vector<analytics::models::Measurement> measurements) -> void {
+    if (measurements.empty())
         return;
-
-    if ((sensors_values.size() != sensors_pos.size()) || sensors_pos.size() % 3 != 0 || sensors_values.size() % 3 != 0)
-        return;
-
-    std::vector<analytics::models::Measurement> measurements;
-
-    for (std::size_t i = 0; i < sensors_values.size(); i += 3) {
-        auto measurement = analytics::models::Measurement{
-            .point_components =
-                {.components = {sensors_pos[i], sensors_pos[i + 1], sensors_pos[i + 2]},
-                                   .coordinate_type = analytics::CoordinateType::Cylindric},
-            .field_components = {
-                                   .components = {sensors_values[i], sensors_values[i + 1], sensors_values[i + 2]},
-                                   .coordinate_type = analytics::CoordinateType::Cylindric}
-        };
-
-        measurements.emplace_back(measurement);
-    }
 
     impl_->analytics_manager_.calculate_svd_coefficients(measurements, 0);
+    // impl_->analytics_manager_.calculate_field(std::array<const std::size_t, __DIMENSION> components, double radius,
+    // double z_length)
 }
 
 #pragma endregion
 
 #pragma region Private Initialization
+
+double TPC::volts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept {
+    const double voltage_mv = voltage_volts * 1000.0;
+
+    return calibration.k * (voltage_mv - calibration.v0_mv);
+}
+
+double TPC::millivolts_to_gauss(double voltage_mv, const models::HallCalibration& calibration) noexcept {
+    return calibration.k * (voltage_mv - calibration.v0_mv);
+}
 
 auto TPC::initialize_start_handlers() -> void {
     (void)client_->error_occurred_.subscribe([this](const std::string& err) {

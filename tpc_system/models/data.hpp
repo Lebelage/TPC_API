@@ -28,4 +28,32 @@ struct ReceivedItem {
     double value{};
 };
 
+struct HallCalibration {
+    double k;      // Гс/мВ
+    double v0_mv;  // мВ
+};
+
+struct NamedHallCalibration {
+    std::string_view name;
+    HallCalibration calibration;
+};
+
+struct HallCalibrationCollection {
+    static inline constexpr std::array calibrations{
+        NamedHallCalibration{"W1R", {.k = 0.569788, .v0_mv = -25.37}},
+        NamedHallCalibration{"W1F",  {.k = 0.747579, .v0_mv = 10.46}},
+        NamedHallCalibration{"W1Z",  {.k = 0.751044, .v0_mv = -3.22}}
+    };
+
+    [[nodiscard]]
+    static constexpr const HallCalibration* find(std::string_view name) noexcept {
+        for (const auto& entry : calibrations) {
+            if (entry.name == name) {
+                return &entry.calibration;
+            }
+        }
+
+        return nullptr;
+    }
+};
 }  // namespace tpc::system::models
