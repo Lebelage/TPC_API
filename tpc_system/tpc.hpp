@@ -1,14 +1,18 @@
 #pragma once
 
+#include <condition_variable>
 #include <expected>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 #include "tpc_analytics/models/three_dimension_models.hpp"
+#include "tpc_core/definitions/analytics_definitions.hpp"
 #include "tpc_system/client/client.hpp"
 #include "tpc_system/models/data.hpp"
 #include "utilities/event_handler.hpp"
@@ -50,8 +54,8 @@ public:
     TPC(const TPC&) = delete;
     TPC& operator=(const TPC&) = delete;
 
-    TPC(TPC&&) noexcept;
-    TPC& operator=(TPC&&) noexcept;
+    TPC(TPC&&) = delete;
+    TPC& operator=(TPC&&) = delete;
 
 public:
     /**
@@ -77,10 +81,9 @@ public:
      */
     [[nodiscard]] auto get_frame_request() -> std::optional<std::unordered_map<std::string, double>>;
 
-    auto calculate_field_3d(std::vector<tpc::analytics::models::Measurement> measurements) -> void;
+    auto calculate_field_async(std::vector<tpc::analytics::models::Measurement> measurements, std::array<size_t, tpc::core::definitions::DIMENSION> grid, double radius, double length) -> void;
 
 private:
-    double volts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept;
     double millivolts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept;
 
 private:
@@ -91,8 +94,7 @@ private:
 
     explicit TPC(std::string endpoint);
     auto initialize_start_handlers() -> void;
-
-    void dispose();
+    auto field_worker_loop(std::stop_token stop_token) -> void;
 
 public:
     /** @brief Emitted when a subsystem error occurs. */
@@ -110,9 +112,17 @@ public:
     /** @brief Emitted when initial sensor discovery metadata is received. */
     utilities::event_handler<models::DiscoveryResult> initialization_data_received_;
 
+    utilities::event_handler<bool> field_was_calculated_;
+
 private:
     std::unique_ptr<struct AnalyticsImpl> impl_;
     std::unique_ptr<client::Client> client_;
+
+    std::mutex field_worker_mutex_;
+    std::condition_variable_any field_worker_cv_;
+    std::optional<models::CalculationData> pending_calculation_data_;
+    bool field_calculation_in_progress_{false};
+    std::jthread field_worker_;
 };
 
 }  // namespace tpc::system

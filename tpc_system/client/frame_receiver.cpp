@@ -1,27 +1,31 @@
+#include "tpc_system/client/frame_receiver.hpp"
+
 #include <expected>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "open62541pp/types.hpp"
-#include "tpc_system/client/frame_receiver.hpp"
 namespace tpc::system::client {
 
 #pragma region Fabric/Constructor
 
 std::expected<std::unique_ptr<FrameReceiver>, std::string> FrameReceiver::create(std::uint16_t receive_count) {
+    if (receive_count == 0)
+        return std::unexpected{"Received queue capacity must be greater than zero"};
+
     try {
         return std::unique_ptr<FrameReceiver>{new FrameReceiver(receive_count)};
-    } catch (std::exception& e) {
-        return std::unexpected{e.what()};
+    } catch (const std::exception& exception) {
+        return std::unexpected{exception.what()};
+    } catch (...) {
+        return std::unexpected{"Failed to create frame receiver: unknown error"};
     }
-    return {};
 }
 
-FrameReceiver::FrameReceiver(std::uint16_t received_queue_size) {
-    received_.reserve(received_queue_size);
+FrameReceiver::FrameReceiver(std::uint16_t capacity) : capacity_{capacity} {
+    received_.reserve(capacity);
 }
 
 #pragma endregion
@@ -31,9 +35,8 @@ FrameReceiver::FrameReceiver(std::uint16_t received_queue_size) {
 std::expected<void, std::string> FrameReceiver::add_back(opcua::NodeId node, double value) {
     std::lock_guard lock{mutex_};
 
-    if (max_received_queue_size_ == 0) {
-        return std::unexpected{"Received queue capacity is zero"};
-    }
+    if (!received_.contains(node) && received_.size() >= capacity_)
+        return std::unexpected{"Received queue capacity was exceeded"};
 
     received_.insert_or_assign(node, value);
 
@@ -50,4 +53,4 @@ std::expected<std::unordered_map<opcua::NodeId, double>, std::string> FrameRecei
 }
 
 #pragma endregion
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

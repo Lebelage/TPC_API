@@ -1,7 +1,11 @@
 #pragma once
 
 #include <expected>
+#include <memory>
+#include <optional>
 #include <span>
+#include <string>
+#include <vector>
 
 #include "open62541pp/services/detail/client_service.hpp"
 #include "open62541pp/services/monitoreditem.hpp"
@@ -26,13 +30,13 @@ private:
     Subscription(opcua::services::SubscriptionParameters parameters);
 
 public:
-    /// Need to TODO
-    std::expected<void, std::string> create_subscription(opcua::Client& client,
-                                                         std::span<const opcua::NodeId> channels_id);
+    std::expected<void, std::string> create_subscription(
+        opcua::Client& client, std::span<const opcua::NodeId> channels_id
+    );
 
-    std::expected<void, std::string> create_monitored_items(opcua::Client& client,
-                                                            opcua::CreateSubscriptionResponse& response,
-                                                            std::span<const opcua::NodeId> channels_id);
+    std::expected<void, std::string> create_monitored_items(
+        opcua::Client& client, opcua::CreateSubscriptionResponse& response
+    );
 
 private:
     opcua::services::SubscriptionParameters parameters_;
@@ -40,15 +44,14 @@ private:
     std::optional<opcua::IntegerId> subscription_id_;
     std::vector<opcua::IntegerId> monitored_item_ids_;
 
-    ///PROBLEM ALARM ALARM
     std::vector<opcua::NodeId> node_ids_;
 
 private:
-    void Release(opcua::IntegerId subscription_id) noexcept;
+    void release(opcua::IntegerId subscription_id) noexcept;
 
 public:
     utilities::event_handler<std::string> info_occurred_;
     utilities::event_handler<std::string> error_occurred_;
     utilities::event_handler<opcua::NodeId, opcua::DataValue> data_received_;
 };
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

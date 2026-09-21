@@ -1,64 +1,80 @@
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
-#include "utilities/header_function.hpp"
+
 #include "tpc_analytics/models/three_dimension_models.hpp"
-namespace tpc::analytics
-{
-    class BasisCollection
-    {
-    public:
-        static std::expected<BasisCollection, std::string> create(std::size_t arity, std::size_t modes, models::CoordinateType basis_type)
-        {
-            return BasisCollection(arity, modes, basis_type);
-        }
+#include "utilities/header_function.hpp"
+namespace tpc::analytics {
+class BasisCollection {
+public:
+    using Function = utilities::header_function<double(std::size_t, double, double, double)>;
 
-        ~BasisCollection() = default;
+    static std::expected<BasisCollection, std::string> create(
+        std::size_t arity, std::size_t modes, models::CoordinateType basis_type
+    ) {
+        if (arity == 0)
+            return std::unexpected("Basis arity must be greater than zero");
 
-    private:
-        BasisCollection(std::size_t arity, std::size_t modes, models::CoordinateType basis_type)
-            : arity_{arity}, modes_{modes}, basis_type_{basis_type}
-        {
-            basis_.reserve(arity);
-        };
+        if (modes == 0)
+            return std::unexpected("Basis modes count must be greater than zero");
 
-    public:
-        BasisCollection(const BasisCollection&)            = delete;
-        BasisCollection& operator=(const BasisCollection&) = delete;
+        return BasisCollection{arity, modes, basis_type};
+    }
 
-        BasisCollection(BasisCollection&&) noexcept            = default;
-        BasisCollection& operator=(BasisCollection&&) noexcept = default;
+    ~BasisCollection() = default;
 
-    public:
-        bool empty() { return basis_.empty(); }
+private:
+    BasisCollection(std::size_t arity, std::size_t modes, models::CoordinateType basis_type)
+        : arity_{arity}, modes_{modes}, basis_type_{basis_type} {
+        basis_.reserve(arity);
+    }
 
-        std::expected<void, std::string> add_back(tpc::utilities::header_function<double(std::size_t, double, double, double)> function)
-        {
-            if (basis_.size() >= arity_)
-                return std::unexpected("Basis collection is full");
+public:
+    BasisCollection(const BasisCollection&) = delete;
+    BasisCollection& operator=(const BasisCollection&) = delete;
 
-            basis_.emplace_back(std::move(function));
-            return {};
-        }
+    BasisCollection(BasisCollection&&) noexcept = default;
+    BasisCollection& operator=(BasisCollection&&) noexcept = default;
 
-    public:
-        std::size_t get_arity() const { return arity_; }
+    [[nodiscard]] bool empty() const noexcept {
+        return basis_.empty();
+    }
 
-        std::size_t get_modes() const { return modes_; }
+    std::expected<void, std::string> add_back(Function function) {
+        if (basis_.size() >= arity_)
+            return std::unexpected("Basis collection is full");
 
-        models::CoordinateType get_basis_type() const { return basis_type_; }
+        basis_.emplace_back(std::move(function));
+        return {};
+    }
 
-        std::span<const tpc::utilities::header_function<double(std::size_t, double, double, double)>> get_basis() const { return basis_; }
+    [[nodiscard]] std::size_t get_arity() const noexcept {
+        return arity_;
+    }
 
-    private:
-        std::size_t            arity_{};
-        std::size_t            modes_{};
-        models::CoordinateType basis_type_{};
+    [[nodiscard]] std::size_t get_modes() const noexcept {
+        return modes_;
+    }
 
-        std::vector<tpc::utilities::header_function<double(std::size_t, double, double, double)>> basis_{};
-    };
+    [[nodiscard]] models::CoordinateType get_basis_type() const noexcept {
+        return basis_type_;
+    }
+
+    [[nodiscard]] std::span<const Function> get_basis() const noexcept {
+        return basis_;
+    }
+
+private:
+    std::size_t arity_{};
+    std::size_t modes_{};
+    models::CoordinateType basis_type_{};
+
+    std::vector<Function> basis_{};
+};
 
 }  // namespace tpc::analytics

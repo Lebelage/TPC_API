@@ -2,9 +2,7 @@
 
 #include <expected>
 #include <format>
-#include <iostream>
 #include <optional>
-#include <span>
 #include <unordered_map>
 #include <utility>
 
@@ -17,7 +15,6 @@ namespace tpc::system {
 
 struct AnalyticsImpl {
     analytics::AnalyticsManager analytics_manager_;
-    analytics::models::Measurement measurement_;
 };
 
 #pragma region Factory / Constructor
@@ -27,7 +24,7 @@ std::expected<std::unique_ptr<TPC>, std::string> TPC::create(std::string_view en
         return std::unique_ptr<TPC>{new TPC(std::string{endpoint})};
     } catch (const std::exception& error) {
         return std::unexpected{
-            std::format("[{}]: Failed to create TPC device: {}", core::definitions::CLIENT_ERROR__, error.what())
+            std::format("[{}]: Failed to create TPC device: {}", core::definitions::CLIENT_ERROR, error.what())
         };
     } catch (...) {
         return std::unexpected{"Failed to create TPC: unknown error"};
@@ -54,24 +51,24 @@ TPC::TPC(std::string endpoint) {
     auto analytics_create_result = tpc::analytics::AnalyticsManager::create(std::move(basis));
 
     if (!analytics_create_result)
-        return;
+        throw std::runtime_error{analytics_create_result.error()};
 
-    impl_ = std::make_unique<AnalyticsImpl>(
-        AnalyticsImpl{.analytics_manager_ = std::move(analytics_create_result.value())}
-    );
+    impl_ = std::make_unique<AnalyticsImpl>(AnalyticsImpl{.analytics_manager_ = std::move(*analytics_create_result)});
 }
 
 TPC::~TPC() = default;
-
-TPC::TPC(TPC&&) noexcept = default;
-TPC& TPC::operator=(TPC&&) noexcept = default;
 
 #pragma endregion
 
 #pragma region Public Methods
 
 auto TPC::start_async() -> void {
-    client_->connect_async();
+    auto result = client_->connect_async();
+
+    if (!result)
+        error_occurred_.invoke(result.error());
+    else if (!*result)
+        warning_occurred_.invoke("TPC client is already running");
 }
 
 auto TPC::stop_async() -> void {
@@ -89,37 +86,61 @@ auto TPC::get_frame_request() -> std::optional<std::unordered_map<std::string, d
         return std::nullopt;
     }
 
-    for(auto& frame : result.value()){
-        auto callibrtion = models::HallCalibrationCollection::find(frame.first);
+    auto frame = std::move(*result);
 
-        if(!callibrtion)
+    for (auto& [sensor_name, value] : frame) {
+        const auto calibration = models::HallCalibrationCollection::find(sensor_name);
+
+        if (!calibration)
             continue;
-            // return std::nullopt;
 
-        frame.second = millivolts_to_gauss(frame.second, *callibrtion);
+        value = millivolts_to_gauss(value, *calibration);
     }
 
-    return std::move(result.value());
+    return frame;
 }
 
-auto TPC::calculate_field_3d(std::vector<analytics::models::Measurement> measurements) -> void {
+auto TPC::calculate_field_async(std::vector<analytics::models::Measurement> measurements, std::array<size_t, tpc::core::definitions::DIMENSION> grid, double radius, double length) -> void {
     if (measurements.empty())
         return;
 
-    impl_->analytics_manager_.calculate_svd_coefficients(measurements, 0);
-    // impl_->analytics_manager_.calculate_field(std::array<const std::size_t, __DIMENSION> components, double radius,
-    // double z_length)
+    bool calculation_already_in_progress = false;
+
+    {
+        std::lock_guard lock{field_worker_mutex_};
+
+        if (field_calculation_in_progress_) {
+            calculation_already_in_progress = true;
+        } else {
+            if (!field_worker_.joinable()) {
+                field_worker_ = std::jthread([this](std::stop_token stop_token) {
+                    field_worker_loop(stop_token);
+                });
+            }
+
+            models::CalculationData calculation_data{
+                .grid = std::move(grid),
+                .measurements = std::move(measurements),
+                .radius = radius,
+                .length = length
+            };
+
+            pending_calculation_data_ = std::move(calculation_data);
+            field_calculation_in_progress_ = true;
+        }
+    }
+
+    if (calculation_already_in_progress) {
+        warning_occurred_.invoke("Field calculation is already in progress");
+        return;
+    }
+
+    field_worker_cv_.notify_one();
 }
 
 #pragma endregion
 
 #pragma region Private Initialization
-
-double TPC::volts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept {
-    const double voltage_mv = voltage_volts * 1000.0;
-
-    return calibration.k * (voltage_mv - calibration.v0_mv);
-}
 
 double TPC::millivolts_to_gauss(double voltage_mv, const models::HallCalibration& calibration) noexcept {
     return calibration.k * (voltage_mv - calibration.v0_mv);
@@ -141,6 +162,66 @@ auto TPC::initialize_start_handlers() -> void {
     (void)client_->initialization_data_received_.subscribe([this](const models::DiscoveryResult& discovery_result) {
         on_client_initialization_data_received(discovery_result);
     });
+}
+
+auto TPC::field_worker_loop(std::stop_token stop_token) -> void {
+    while (!stop_token.stop_requested()) {
+        models::CalculationData calculation_data;
+
+        {
+            std::unique_lock lock{field_worker_mutex_};
+            const bool has_work = field_worker_cv_.wait(lock, stop_token, [this] {
+                return pending_calculation_data_.has_value();
+            });
+
+            if (!has_work)
+                return;
+
+            calculation_data = std::move(*pending_calculation_data_);
+            pending_calculation_data_.reset();
+        }
+
+        bool calculation_succeeded = false;
+        std::string error;
+
+        try {
+            auto coefficients_result = impl_->analytics_manager_.calculate_svd_coefficients(calculation_data.measurements, 1e-4F);
+
+            if (!coefficients_result) {
+                error = std::move(coefficients_result.error());
+            } else {
+                auto field_result = impl_->analytics_manager_.calculate_field(calculation_data.grid, calculation_data.radius, calculation_data.length);
+
+                if (!field_result)
+                    error = std::move(field_result.error());
+                else
+                    calculation_succeeded = true;
+            }
+        } catch (const std::exception& exception) {
+            error = exception.what();
+        } catch (...) {
+            error = "Unknown error during field calculation";
+        }
+
+        {
+            std::lock_guard lock{field_worker_mutex_};
+            field_calculation_in_progress_ = false;
+        }
+
+        if (!calculation_succeeded) {
+            try {
+                error_occurred_.invoke(std::format("Field calculation failed: {}", error));
+            } catch (...) {
+                // A user callback .
+            }
+        }
+
+        try {
+            field_was_calculated_.invoke(calculation_succeeded);
+        } catch (...) {
+            // A user callback.
+        }
+    }
 }
 
 #pragma endregion

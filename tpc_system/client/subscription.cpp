@@ -1,12 +1,12 @@
-#include <format>
-#include <iostream>
-#include <expected>
-#include <span>
-
-#include <open62541pp/client.hpp>
 #include "open62541pp/services/subscription.hpp"
-#include "open62541pp/services/monitoreditem.hpp"
 
+#include <expected>
+#include <format>
+#include <open62541pp/client.hpp>
+#include <span>
+#include <utility>
+
+#include "open62541pp/services/monitoreditem.hpp"
 #include "tpc_system/client/subscription.hpp"
 namespace tpc::system::client {
 
@@ -21,7 +21,8 @@ std::expected<std::unique_ptr<Subscription>, std::string> Subscription::create()
     try {
         opcua::services::SubscriptionParameters parameters{
             .publishingInterval = DefaultSubscriptionConfig::publishing_interval,
-            .maxKeepAliveCount = DefaultSubscriptionConfig::max_keep_alive_count};
+            .maxKeepAliveCount = DefaultSubscriptionConfig::max_keep_alive_count
+        };
 
         return std::unique_ptr<Subscription>{new Subscription(std::move(parameters))};
     } catch (...) {
@@ -29,37 +30,41 @@ std::expected<std::unique_ptr<Subscription>, std::string> Subscription::create()
     }
 }
 
-Subscription::Subscription(opcua::services::SubscriptionParameters parameters) : parameters_(parameters) {}
+Subscription::Subscription(opcua::services::SubscriptionParameters parameters) : parameters_(std::move(parameters)) {}
 
-Subscription::~Subscription() {
-
-};
+Subscription::~Subscription() = default;
 #pragma endregion
 
 #pragma region Public methods
 
-std::expected<void, std::string> Subscription::create_subscription(opcua::Client& client,
-                                                                   std::span<const opcua::NodeId> channels_id) {
+std::expected<void, std::string> Subscription::create_subscription(
+    opcua::Client& client, std::span<const opcua::NodeId> channels_id
+) {
     node_ids_ = std::vector<opcua::NodeId>{channels_id.begin(), channels_id.end()};
 
     opcua::services::createSubscriptionAsync(
-        client, parameters_, true, nullptr,
+        client,
+        parameters_,
+        true,
+        nullptr,
         [this](opcua::IntegerId subscription_id) {
-            Release(subscription_id);
+            release(subscription_id);
         },
-        [this, &client, channels_id](opcua::CreateSubscriptionResponse& response) noexcept {
-            create_monitored_items(client, response, channels_id);
-        });
+        [this, &client](opcua::CreateSubscriptionResponse& response) noexcept {
+            create_monitored_items(client, response);
+        }
+    );
 
     return {};
 }
 
-std::expected<void, std::string> Subscription::create_monitored_items(opcua::Client& client,
-                                                                      opcua::CreateSubscriptionResponse& response,
-                                                                      std::span<const opcua::NodeId> channels_id) {
+std::expected<void, std::string> Subscription::create_monitored_items(
+    opcua::Client& client, opcua::CreateSubscriptionResponse& response
+) {
     try {
         opcua::services::MonitoringParametersEx parameters{
-            .samplingInterval = 1000, .queueSize = 1, .discardOldest = true};
+            .samplingInterval = 1000, .filter = {}, .queueSize = 1, .discardOldest = true
+        };
 
         response.responseHeader().serviceResult().throwIfBad();
 
@@ -67,7 +72,11 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
         for (const auto& node : node_ids_) {
             auto read_value = opcua::ReadValueId{node, opcua::AttributeId::Value};
             opcua::services::createMonitoredItemDataChangeAsync(
-                client, *subscription_id_, read_value, opcua::MonitoringMode::Reporting, parameters,
+                client,
+                *subscription_id_,
+                read_value,
+                opcua::MonitoringMode::Reporting,
+                parameters,
                 [this, node](opcua::IntegerId, opcua::IntegerId, const opcua::DataValue& value) noexcept {
                     try {
                         data_received_(node, value);
@@ -75,19 +84,22 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
                         error_occurred_(ex.what());
                     }
                 },
-                [this, node](opcua::IntegerId id, opcua::IntegerId monId) noexcept {
-                    info_occurred_(std::format("Monitored item was deleted: {}", node.toString()));
+                [this, node](opcua::IntegerId, opcua::IntegerId) noexcept {
+                    info_occurred_(std::format("Monitored item was deleted: {}", opcua::toString(node)));
                 },
                 [this, node](opcua::MonitoredItemCreateResult& result) noexcept {
                     try {
                         result.statusCode().throwIfBad();
                         monitored_item_ids_.push_back(result.monitoredItemId());
 
-                        info_occurred_.invoke(std::format("Monitored item was created: {}", node.toString()));
+                        info_occurred_.invoke(std::format("Monitored item was created: {}", opcua::toString(node)));
                     } catch (const std::exception& error) {
-                        error_occurred_.invoke(std::format("Cannot monitor {}: {}", node.toString(), error.what()));
+                        error_occurred_.invoke(
+                            std::format("Cannot monitor {}: {}", opcua::toString(node), error.what())
+                        );
                     }
-                });
+                }
+            );
         }
 
     } catch (std::exception& ex) {
@@ -101,7 +113,7 @@ std::expected<void, std::string> Subscription::create_monitored_items(opcua::Cli
 
 #pragma region Private methods
 
-void Subscription::Release(opcua::IntegerId subscription_id) noexcept {
+void Subscription::release(opcua::IntegerId subscription_id) noexcept {
     if (subscription_id_ == subscription_id) {
         subscription_id_.reset();
         monitored_item_ids_.clear();
@@ -109,4 +121,4 @@ void Subscription::Release(opcua::IntegerId subscription_id) noexcept {
 }
 
 #pragma endregion
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

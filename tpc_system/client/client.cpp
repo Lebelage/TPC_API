@@ -1,16 +1,15 @@
-#include <memory>
-#include <print>
-#include <vector>
-#include <expected>
-#include <numeric>
+#include "tpc_system/client/client.hpp"
 
 #include <exec/start_detached.hpp>
-#include <stdexec/execution.hpp>
-
+#include <expected>
+#include <memory>
+#include <numeric>
 #include <open62541pp/client.hpp>
-#include "tpc_system/client/client.hpp"
-#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
+#include <stdexec/execution.hpp>
+#include <vector>
+
 #include "tpc_core/definitions/client_definitions.hpp"
+#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
 #include "tpc_system/models/data.hpp"
 namespace tpc::system::client {
 
@@ -18,43 +17,44 @@ namespace tpc::system::client {
 
 [[nodiscard]] std::expected<std::unique_ptr<Client>, std::string> Client::create(std::string endpoint) {
     try {
-        return std::unique_ptr<Client>{new Client(endpoint)};
+        return std::unique_ptr<Client>{new Client(std::move(endpoint))};
     } catch (const std::exception& error) {
         return std::unexpected{
-            std::format("[{}]: Failed to create TPC client: {}", core::definitions::CLIENT_ERROR__, error.what())};
+            std::format("[{}]: Failed to create TPC client: {}", core::definitions::CLIENT_ERROR, error.what())
+        };
     } catch (...) {
         return std::unexpected(
-            std::format("[{}]: Failed to create TPC client: unknown error", core::definitions::CLIENT_ERROR__));
-    };
-};
+            std::format("[{}]: Failed to create TPC client: unknown error", core::definitions::CLIENT_ERROR)
+        );
+    }
+}
 
-Client::Client(std::string endpoint)
-    : client_{std::make_unique<opcua::Client>()}, processing_pool_(2), endpoint_(endpoint) {
+Client::Client(std::string endpoint) : client_{std::make_unique<opcua::Client>()}, endpoint_(std::move(endpoint)) {
     auto subscription_result = Subscription::create();
 
     if (!subscription_result)
-        return;
+        throw std::runtime_error{subscription_result.error()};
 
-    subscription_ = std::move(subscription_result.value());
+    subscription_ = std::move(*subscription_result);
 
-    subscription_->data_received_.subscribe([this](opcua::NodeId channel, opcua::DataValue value) {
+    (void)subscription_->data_received_.subscribe([this](opcua::NodeId channel, opcua::DataValue value) {
         on_subscription_data_received(channel, value);
     });
 
-    subscription_->error_occurred_.subscribe([this](std::string str) {
+    (void)subscription_->error_occurred_.subscribe([this](std::string str) {
         on_subscription_error_occurred(str);
     });
 
-    subscription_->info_occurred_.subscribe([this](std::string str) {
+    (void)subscription_->info_occurred_.subscribe([this](std::string str) {
         on_subscription_info_occurred(str);
     });
 
     auto frame_receiver_result = FrameReceiver::create(36);
 
     if (!frame_receiver_result)
-        return;
+        throw std::runtime_error{frame_receiver_result.error()};
 
-    frame_receiver_ = std::move(frame_receiver_result.value());
+    frame_receiver_ = std::move(*frame_receiver_result);
 }
 
 #pragma endregion
@@ -71,8 +71,10 @@ std::expected<bool, std::string> Client::connect_async() {
 
     auto result = initialize_opcua_handlers();
 
-    if (!result)
-        return false;
+    if (!result) {
+        running_ = false;
+        return std::unexpected{result.error()};
+    }
 
     opcua_thread_ = std::jthread([this](std::stop_token stop_token) noexcept {
         try {
@@ -85,7 +87,7 @@ std::expected<bool, std::string> Client::connect_async() {
             client_->connectAsync(endpoint_);
 
             while (!stop_token.stop_requested() && !stop_requested_.load()) {
-                client_->runIterate(polling_interval_ms_);
+                client_->runIterate(kPollingIntervalMs);
             }
 
             if (client_->isConnected())
@@ -105,6 +107,17 @@ bool Client::is_running() const {
     return running_.load();
 }
 
+std::vector<std::string> Client::get_sensors_names() const {
+    std::shared_lock lock{channels_info_mutex_};
+    std::vector<std::string> names;
+    names.reserve(channels_info_.nodes.size());
+
+    for (const auto& name : channels_info_.nodes | std::views::values)
+        names.push_back(name);
+
+    return names;
+}
+
 void Client::stop() {
     stop_requested_ = true;
     opcua_thread_.request_stop();
@@ -116,10 +129,16 @@ auto Client::get_frame() -> std::optional<std::unordered_map<std::string, double
     if (!frame_result)
         return std::nullopt;
 
-    std::unordered_map<std::string, double> frame{};
+    auto received_frame = std::move(*frame_result);
+    std::unordered_map<std::string, double> frame;
+    frame.reserve(received_frame.size());
+    std::shared_lock lock{channels_info_mutex_};
 
-    for (auto key : frame_result.value() | std::views::keys) {
-        frame.insert_or_assign(channels_info.nodes.find(key)->second, frame_result.value().at(key));
+    for (const auto& [node_id, value] : received_frame) {
+        const auto channel = channels_info_.nodes.find(node_id);
+
+        if (channel != channels_info_.nodes.end())
+            frame.insert_or_assign(channel->second, value);
     }
 
     return frame;
@@ -134,7 +153,8 @@ auto Client::initialize_opcua_handlers() -> std::expected<void, std::string> {
         return std::unexpected("Client is not initialized");
 
     client_->onSessionActivated([this] {
-        initialize_monitored_items();
+        if (auto result = initialize_monitored_items(); !result)
+            error_occurred_.invoke(result.error());
         on_opcua_session_activated();
     });
     client_->onConnected([this] {
@@ -172,21 +192,21 @@ auto Client::find_slot_ids(const opcua::BrowseResult& result) -> std::vector<opc
     std::vector<opcua::NodeId> ids;
 
     for (const auto& reference : result.references()) {
-        if (!reference.isForward() || reference.nodeClass() != opcua::NodeClass::Object
-            || !reference.nodeId().isLocal())
+        if (!reference.isForward() || reference.nodeClass() != opcua::NodeClass::Object ||
+            !reference.nodeId().isLocal())
             continue;
 
         if (reference.browseName().name().starts_with("Slot "))
             ids.push_back(reference.nodeId().nodeId());
-    };
+    }
     return ids;
 }
 
 auto Client::append_channels(tpc::system::models::DiscoveryResult& result, const opcua::BrowseResult& slot_result)
     -> void {
     for (const auto& reference : slot_result.references()) {
-        if (!reference.isForward() || reference.nodeClass() != opcua::NodeClass::Variable
-            || !reference.nodeId().isLocal()) {
+        if (!reference.isForward() || reference.nodeClass() != opcua::NodeClass::Variable ||
+            !reference.nodeId().isLocal()) {
             continue;
         }
 
@@ -201,21 +221,27 @@ auto Client::append_channels(tpc::system::models::DiscoveryResult& result, const
 auto Client::on_subscription_data_received(opcua::NodeId node, opcua::DataValue value) -> void {
     const auto values = value.value().array<double>();
 
-    double average = std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
+    if (values.empty()) {
+        warning_occurred_.invoke("Received an empty sensor sample");
+        return;
+    }
 
-    frame_receiver_->add_back(node, average);
+    const double average = std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
+
+    if (auto result = frame_receiver_->add_back(node, average); !result)
+        warning_occurred_.invoke(result.error());
 }
 
 auto Client::on_subscription_error_occurred(std::string message) -> void {
-    error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, message));
+    error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR, message));
 }
 
 auto Client::on_subscription_info_occurred(std::string message) -> void {
-    info_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_INFO__, message));
+    info_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_INFO, message));
 }
 
 auto Client::on_opcua_session_activated() -> void {
-    connection_state_changed_.invoke(ConnectionState::Connected);
+    connection_state_changed_.invoke(ConnectionState::SessionActivated);
 }
 
 auto Client::on_opcua_connected() -> void {
@@ -238,4 +264,4 @@ auto Client::on_opcua_disconnected() -> void {
 
 #pragma endregion
 
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

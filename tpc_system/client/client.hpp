@@ -1,18 +1,28 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
+#include <exec/start_detached.hpp>
 #include <expected>
 #include <format>
+#include <memory>
+#include <mutex>
 #include <open62541pp/client.hpp>
+#include <optional>
+#include <ranges>
+#include <shared_mutex>
+#include <stdexcept>
 #include <stdexec/__detail/__task.hpp>
 #include <stdexec/execution.hpp>
+#include <string>
+#include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include <exec/start_detached.hpp>
-#include "exec/static_thread_pool.hpp"
 #include "tpc_core/definitions/client_definitions.hpp"
-#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
 #include "tpc_system/client/frame_receiver.hpp"
+#include "tpc_system/client/helpers/opcua_browse_adapter.hpp"
 #include "tpc_system/client/subscription.hpp"
 #include "tpc_system/models/data.hpp"
 #include "utilities/event_handler.hpp"
@@ -58,21 +68,17 @@ private:
 
     [[nodiscard]] auto initialize_monitored_items() -> std::expected<void, std::string>;
 
-    [[nodiscard]] auto create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void>;
+    [[nodiscard]] auto create_subscription(models::DiscoveryResult discovery) -> stdexec::task<void>;
 
     [[nodiscard]] auto discover_folders() -> stdexec::task<models::DiscoveryResult>;
 
-    [[nodiscard]] auto start_discovery() -> std::expected<void, std::string>;
-
-    [[nodiscard]] auto find_child(const opcua::BrowseResult& result,
-                                  std::string_view name,
-                                  opcua::NodeClass expected_class) -> std::optional<opcua::NodeId>;
+    [[nodiscard]] auto find_child(
+        const opcua::BrowseResult& result, std::string_view name, opcua::NodeClass expected_class
+    ) -> std::optional<opcua::NodeId>;
 
     [[nodiscard]] auto find_slot_ids(const opcua::BrowseResult& result) -> std::vector<opcua::NodeId>;
 
-    auto append_channels(tpc::system::models::DiscoveryResult& result,
-                                       const opcua::BrowseResult& slot_result) -> void;
-
+    auto append_channels(models::DiscoveryResult& result, const opcua::BrowseResult& slot_result) -> void;
 
 private:
     auto on_subscription_data_received(opcua::NodeId, opcua::DataValue) -> void;
@@ -84,8 +90,6 @@ private:
     auto on_opcua_inactive() -> void;
     auto on_opcua_session_closed() -> void;
     auto on_opcua_disconnected() -> void;
-
-
 
 public:
     utilities::event_handler<std::string> error_occurred_;
@@ -101,53 +105,45 @@ private:
 
     std::unique_ptr<FrameReceiver> frame_receiver_;
 
-    ConnectionState connection_state_;
-
-    bool session_state_{false};
-    bool discovery_started_{false};
-    bool subscription_started_{false};
-
-    std::optional<opcua::IntegerId> subscription_id_;
-    std::vector<opcua::IntegerId> monitored_item_ids_;
-
-    std::vector<opcua::NodeId> ids_;
-    std::mutex handlers_mutex_;
-
     std::atomic_bool running_{false};
     std::atomic_bool stop_requested_{false};
 
     std::jthread opcua_thread_;
-    exec::static_thread_pool processing_pool_;
 
-    models::DiscoveryResult channels_info;
+    models::DiscoveryResult channels_info_;
+    mutable std::shared_mutex channels_info_mutex_;
 
 private:
-    const uint16_t polling_interval_ms_{50};
+    static constexpr std::uint16_t kPollingIntervalMs = 50;
 };
-} // namespace tpc::system::client
+}  // namespace tpc::system::client
 
 namespace tpc::system::client {
 
 inline auto Client::initialize_monitored_items() -> std::expected<void, std::string> {
-    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders())
-                | stdexec::let_value([this](models::DiscoveryResult discovery) {
-                      channels_info = std::move(discovery);
-                      initialization_data_received_.invoke(channels_info);
-                      return create_subscription(channels_info);
-                  })
-                | stdexec::upon_error([this](std::exception_ptr error) noexcept {
-                      try {
-                          std::rethrow_exception(error);
-                      } catch (const std::exception& ex) {
-                          error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR__, ex.what()));
-                      }
-                  });
+    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders()) |
+                stdexec::let_value([this](models::DiscoveryResult discovery) {
+                    {
+                        std::unique_lock lock{channels_info_mutex_};
+                        channels_info_ = discovery;
+                    }
+
+                    initialization_data_received_.invoke(discovery);
+                    return create_subscription(std::move(discovery));
+                }) |
+                stdexec::upon_error([this](std::exception_ptr error) noexcept {
+                    try {
+                        std::rethrow_exception(error);
+                    } catch (const std::exception& ex) {
+                        error_occurred_.invoke(std::format("[{}]: {}", core::definitions::CLIENT_ERROR, ex.what()));
+                    }
+                });
 
     exec::start_detached(std::move(task));
     return {};
 }
 
-inline auto Client::create_subscription(models::DiscoveryResult& discovery) -> stdexec::task<void> {
+inline auto Client::create_subscription(models::DiscoveryResult discovery) -> stdexec::task<void> {
     if (!subscription_)
         throw std::runtime_error("Subscription is null");
 
@@ -158,14 +154,12 @@ inline auto Client::create_subscription(models::DiscoveryResult& discovery) -> s
         node_ids.push_back(value);
     }
 
-    subscription_->create_subscription(*client_, node_ids);
-    co_return;
-}
+    auto result = subscription_->create_subscription(*client_, node_ids);
 
-inline auto Client::start_discovery() -> std::expected<void, std::string> {
-    auto task = stdexec::starts_on(stdexec::inline_scheduler{}, discover_folders());
-    exec::start_detached(std::move(task));
-    return {};
+    if (!result)
+        throw std::runtime_error{result.error()};
+
+    co_return;
 }
 
 inline auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult> {
@@ -191,4 +185,4 @@ inline auto Client::discover_folders() -> stdexec::task<models::DiscoveryResult>
 
     co_return result;
 }
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

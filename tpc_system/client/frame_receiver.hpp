@@ -3,17 +3,16 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <open62541pp/types.hpp>
 #include <string>
 #include <unordered_map>
-#include <vector>
-#include <open62541pp/types.hpp>
-#include "tpc_system/models/data.hpp"
 namespace tpc::system::client {
 
 class FrameReceiver {
 public:
-    [[nodiscard]] static std::expected<std::unique_ptr<FrameReceiver>, std::string>
-    create(std::uint16_t receive_count = 36);
+    [[nodiscard]] static std::expected<std::unique_ptr<FrameReceiver>, std::string> create(
+        std::uint16_t receive_count = 36
+    );
 
     ~FrameReceiver() = default;
 
@@ -28,14 +27,14 @@ public:
     std::expected<std::unordered_map<opcua::NodeId, double>, std::string> get_frame() const;
 
 private:
-    explicit FrameReceiver(std::uint16_t received_queue_size);
+    explicit FrameReceiver(std::uint16_t capacity);
 
 private:
     std::unordered_map<opcua::NodeId, double> received_;
 
-    std::uint16_t max_received_queue_size_{36};
+    std::uint16_t capacity_{};
 
     mutable std::mutex mutex_;
 };
 
-} // namespace tpc::system::client
+}  // namespace tpc::system::client

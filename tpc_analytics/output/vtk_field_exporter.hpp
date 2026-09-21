@@ -81,7 +81,6 @@ namespace tpc::analytics::output
                 output << x << ' ' << y << ' ' << z << '\n';
             }
 
-            // Описываем каждую точку как отдельную VTK-вершину.
             output << "\nVERTICES " << num_points
                    << ' ' << num_points * 2 << '\n';
 

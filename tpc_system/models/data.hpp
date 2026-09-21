@@ -5,6 +5,9 @@
 #include <string>
 #include <unordered_map>
 
+#include "tpc_core/definitions/analytics_definitions.hpp"
+#include "tpc_analytics/models/three_dimension_models.hpp"
+
 namespace tpc::system::models {
 
 struct NodeIdHash {
@@ -39,7 +42,7 @@ struct NamedHallCalibration {
 };
 
 struct HallCalibrationCollection {
-    static inline constexpr std::array calibrations{
+    static inline constexpr std::array kCalibrations{
         NamedHallCalibration{"W1R", {.k = 0.569788, .v0_mv = -25.37}},
         NamedHallCalibration{"W1F",  {.k = 0.747579, .v0_mv = 10.46}},
         NamedHallCalibration{"W1Z",  {.k = 0.751044, .v0_mv = -3.22}}
@@ -47,7 +50,7 @@ struct HallCalibrationCollection {
 
     [[nodiscard]]
     static constexpr const HallCalibration* find(std::string_view name) noexcept {
-        for (const auto& entry : calibrations) {
+        for (const auto& entry : kCalibrations) {
             if (entry.name == name) {
                 return &entry.calibration;
             }
@@ -55,5 +58,18 @@ struct HallCalibrationCollection {
 
         return nullptr;
     }
+};
+
+struct TpcGeometry {
+    static inline constexpr double kRadius = 4;
+    static inline constexpr double kLength = 7;
+};
+
+struct CalculationData {
+    std::array<size_t, tpc::core::definitions::DIMENSION> grid;
+    std::vector<analytics::models::Measurement> measurements;
+
+    double radius;
+    double length;
 };
 }  // namespace tpc::system::models
