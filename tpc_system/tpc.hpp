@@ -83,7 +83,7 @@ public:
 
     auto calculate_field_async(std::vector<tpc::analytics::models::Measurement> measurements, std::array<size_t, tpc::core::definitions::DIMENSION> grid, double radius, double length) -> void;
 
-    auto export_to_vtk();
+    auto export_to_vtk(std::string_view file_path) -> std::expected<void, std::string>;
 private:
     double millivolts_to_gauss(double voltage_volts, const models::HallCalibration& calibration) noexcept;
 

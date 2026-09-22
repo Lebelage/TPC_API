@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <format>
+#include <iostream>
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -138,8 +139,18 @@ auto TPC::calculate_field_async(std::vector<analytics::models::Measurement> meas
     field_worker_cv_.notify_one();
 }
 
-auto TPC::export_to_vtk() {
-    impl_->analytics_manager_.prepare_vtk_data();
+auto TPC::export_to_vtk(std::string_view file_path) -> std::expected<void, std::string> {
+
+    if (file_path.empty())
+        return std::unexpected("File path is empty");
+
+    auto result = impl_->analytics_manager_.export_to_vtk(file_path);
+
+    if (!result) {
+        auto error = std::format("Exporting vtk file failed: {}", result.error());
+        return std::unexpected(error);
+    }
+    return {};
 }
 
 #pragma endregion
@@ -200,7 +211,6 @@ auto TPC::field_worker_loop(std::stop_token stop_token) -> void {
                     error = std::move(field_result.error());
                 else {
                     calculation_succeeded = true;
-                    export_to_vtk();
                 }
 
             }
@@ -226,6 +236,7 @@ auto TPC::field_worker_loop(std::stop_token stop_token) -> void {
         try {
             field_was_calculated_.invoke(calculation_succeeded);
         } catch (...) {
+
             // A user callback.
         }
     }

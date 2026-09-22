@@ -301,8 +301,15 @@ private:
 
 
 public:
-    std::expected<void, std::string> prepare_vtk_data() {
-        tpc::analytics::output::VtkFieldExporter::export_3d_field_to_vtk(field_data_.value().get_field(), field_data_.value().get_coordinates(), "field.vtk");
+    std::expected<void, std::string> export_to_vtk(std::string_view file_path) {
+        if (field_data_.value().get_field().empty() || field_data_.value().get_coordinates().empty())
+            return std::unexpected("Field data is empty");
+
+        auto result = tpc::analytics::output::VtkFieldExporter::export_3d_field_to_vtk(field_data_.value().get_field(), field_data_.value().get_coordinates(), file_path);
+
+        if (!result)
+            return std::unexpected(result.error());
+
         return{};
     }
 
