@@ -138,6 +138,10 @@ auto TPC::calculate_field_async(std::vector<analytics::models::Measurement> meas
     field_worker_cv_.notify_one();
 }
 
+auto TPC::export_to_vtk() {
+    impl_->analytics_manager_.prepare_vtk_data();
+}
+
 #pragma endregion
 
 #pragma region Private Initialization
@@ -194,8 +198,11 @@ auto TPC::field_worker_loop(std::stop_token stop_token) -> void {
 
                 if (!field_result)
                     error = std::move(field_result.error());
-                else
+                else {
                     calculation_succeeded = true;
+                    export_to_vtk();
+                }
+
             }
         } catch (const std::exception& exception) {
             error = exception.what();

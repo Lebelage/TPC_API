@@ -299,7 +299,13 @@ private:
         return {};
     }
 
+
 public:
+    std::expected<void, std::string> prepare_vtk_data() {
+        tpc::analytics::output::VtkFieldExporter::export_3d_field_to_vtk(field_data_.value().get_field(), field_data_.value().get_coordinates(), "field.vtk");
+        return{};
+    }
+
     static std::array<std::size_t, kDimension> create_grid(std::size_t nx, std::size_t ny, std::size_t nz) {
         return {nx, ny, nz};
     }
