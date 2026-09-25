@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <stop_token>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -96,6 +97,15 @@ public:
     auto start_polling_async(size_t polling_interval_ms) -> void;
 
     auto calculate_field_async(std::vector<tpc::analytics::models::Measurement> measurements, std::array<size_t, tpc::core::definitions::DIMENSION> grid, double radius, double length) -> void;
+
+    [[nodiscard]] auto get_field_slice(
+        analytics::models::SliceDirection direction,
+        double coordinate,
+        std::array<std::size_t, 2> grid,
+        double radius,
+        double length,
+        std::stop_token stop_token = {}
+    ) const -> std::expected<analytics::models::FieldSlice, std::string>;
 
     auto export_to_vtk(std::string_view file_path) -> std::expected<void, std::string>;
 

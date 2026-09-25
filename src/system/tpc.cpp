@@ -224,6 +224,17 @@ auto TPC::calculate_field_async(std::vector<analytics::models::Measurement> meas
     field_worker_cv_.notify_one();
 }
 
+auto TPC::get_field_slice(
+    analytics::models::SliceDirection direction,
+    double coordinate,
+    std::array<std::size_t, 2> grid,
+    double radius,
+    double length,
+    std::stop_token stop_token
+) const -> std::expected<analytics::models::FieldSlice, std::string> {
+    return impl_->analytics_manager_.evaluate_field_slice(direction, coordinate, grid, radius, length, stop_token);
+}
+
 auto TPC::export_to_vtk(std::string_view file_path) -> std::expected<void, std::string> {
 
     if (file_path.empty())

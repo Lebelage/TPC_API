@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <ranges>
 #include <span>
@@ -79,6 +80,17 @@ struct Measurement {
     [[nodiscard]] std::span<const double> get_field_components() const noexcept {
         return field_components.get_field_components();
     }
+};
+
+/** Numerically evaluated regular 2D slice. Field components are Cartesian. */
+struct FieldSlice {
+    SliceDirection direction{SliceDirection::Z};
+    double coordinate{};
+    std::array<std::size_t, 2> grid{};
+    std::array<double, 2> horizontal_bounds{};
+    std::array<double, 2> vertical_bounds{};
+    std::vector<double> field;
+    std::vector<std::uint8_t> valid;
 };
 
 class FieldCollection {

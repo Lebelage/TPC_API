@@ -9,6 +9,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <span>
+#include <stop_token>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -143,6 +144,96 @@ public:
         }
 
         return models::FieldComponents{.components = components, .coordinate_type = models::CoordinateType::Cylindric};
+    }
+
+    [[nodiscard]] std::expected<models::FieldSlice, std::string> evaluate_field_slice(
+        models::SliceDirection direction,
+        double coordinate,
+        std::array<std::size_t, 2> grid,
+        double radius,
+        double z_length,
+        std::stop_token stop_token = {}
+    ) const {
+        if (grid[0] < 2 || grid[1] < 2)
+            return std::unexpected("Slice grid dimensions must be at least 2");
+        if (radius <= 0.0 || z_length <= 0.0)
+            return std::unexpected("Radius and length must be positive");
+
+        const double half_length = z_length * 0.5;
+        if ((direction == models::SliceDirection::Z && std::abs(coordinate) > half_length)
+            || (direction != models::SliceDirection::Z && std::abs(coordinate) > radius))
+            return std::unexpected("Slice coordinate is outside the TPC geometry");
+
+        std::shared_lock lock{coefficients_mutex_};
+        const auto modes = basis_collection_.get_modes();
+        if (stored_coefficients_.size() != static_cast<Eigen::Index>(modes))
+            return std::unexpected("SVD coefficients are not calculated");
+
+        models::FieldSlice slice{
+            .direction = direction,
+            .coordinate = coordinate,
+            .grid = grid,
+            .field = {},
+            .valid = {}
+        };
+        if (direction == models::SliceDirection::Z) {
+            slice.horizontal_bounds = {-radius, radius};
+            slice.vertical_bounds = {-radius, radius};
+        } else {
+            const double transverse_limit = std::sqrt(std::max(0.0, radius * radius - coordinate * coordinate));
+            slice.horizontal_bounds = {-transverse_limit, transverse_limit};
+            slice.vertical_bounds = {-half_length, half_length};
+        }
+
+        if (grid[0] > std::numeric_limits<std::size_t>::max() / grid[1])
+            return std::unexpected("Slice grid is too large");
+        const std::size_t pixel_count = grid[0] * grid[1];
+        if (pixel_count > std::numeric_limits<std::size_t>::max() / kDimension)
+            return std::unexpected("Slice grid is too large");
+        slice.field.resize(pixel_count * kDimension);
+        slice.valid.assign(pixel_count, 0);
+
+        const auto basis = basis_collection_.get_basis();
+        const double du = (slice.horizontal_bounds[1] - slice.horizontal_bounds[0])
+            / static_cast<double>(grid[0] - 1);
+        const double dv = (slice.vertical_bounds[1] - slice.vertical_bounds[0])
+            / static_cast<double>(grid[1] - 1);
+
+        for (std::size_t row = 0; row < grid[1]; ++row) {
+            if (stop_token.stop_requested())
+                return std::unexpected("Slice evaluation cancelled");
+            const double v = slice.vertical_bounds[1] - static_cast<double>(row) * dv;
+            for (std::size_t column = 0; column < grid[0]; ++column) {
+                const double u = slice.horizontal_bounds[0] + static_cast<double>(column) * du;
+                double x{};
+                double y{};
+                double z{};
+                switch (direction) {
+                    case models::SliceDirection::X: x = coordinate; y = u; z = v; break;
+                    case models::SliceDirection::Y: x = u; y = coordinate; z = v; break;
+                    case models::SliceDirection::Z: x = u; y = v; z = coordinate; break;
+                }
+                if (x * x + y * y > radius * radius)
+                    continue;
+
+                const double r = std::hypot(x, y);
+                const double phi = r <= std::numeric_limits<double>::epsilon() ? 0.0 : std::atan2(y, x);
+                std::array<double, kDimension> cylindrical{};
+                for (std::size_t mode = 0; mode < modes; ++mode) {
+                    const double coefficient = stored_coefficients_[static_cast<Eigen::Index>(mode)];
+                    for (std::size_t component = 0; component < kDimension; ++component)
+                        cylindrical[component] += coefficient * basis[component](mode, r, phi, z);
+                }
+
+                const std::size_t pixel = row * grid[0] + column;
+                const std::size_t offset = pixel * kDimension;
+                slice.field[offset] = cylindrical[0] * std::cos(phi) - cylindrical[1] * std::sin(phi);
+                slice.field[offset + 1] = cylindrical[0] * std::sin(phi) + cylindrical[1] * std::cos(phi);
+                slice.field[offset + 2] = cylindrical[2];
+                slice.valid[pixel] = 1;
+            }
+        }
+        return slice;
     }
 
     std::expected<void, std::string> calculate_field(
